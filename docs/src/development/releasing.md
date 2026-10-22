@@ -9,7 +9,7 @@ Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a ta
    git push origin main v0.2.0
    ```
 
-   `release-tag` writes the version to `Cargo.toml` and `Cargo.lock`, commits "Release 0.2.0" and adds the annotated tag `v0.2.0`. Its message opens in your editor, filled with the subjects of the commits since the last `v*` tag; closing the editor with an empty message cancels the tag. The tag must be `v` plus the version from `Cargo.toml`; the workflow fails otherwise. Push the tag from the command line and do not create the release in GitHub's web interface: the workflow creates it and fails if one exists.
+   `release-tag` writes the version to `Cargo.toml` and `Cargo.lock`, commits "Release 0.2.0" and adds the annotated tag `v0.2.0`. Its message opens in your editor, filled with the subjects of the commits since the last `v*` tag; closing the editor with an empty message cancels the tag. If `Cargo.toml` already has the version (a tag deleted to tag a later commit), it only tags. The tag must be `v` plus the version from `Cargo.toml`; the workflow fails otherwise. Push the tag from the command line and do not create the release in GitHub's web interface: the workflow creates it and fails if one exists.
 
 `Cargo.toml` is the only source of the version. A build of the commit tagged `v<version>` shows it plain (`capycal --version`, About, the Settings sidebar); every other build adds the commit, e.g. `0.2.0 (abc1234)`, set by `build.rs` as `capycal::VERSION`. Outside a git checkout the version stays plain.
 

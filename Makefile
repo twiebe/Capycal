@@ -137,10 +137,11 @@ release-tag: ## Set the version in Cargo.toml, commit and tag it: make release-t
 	@test "$(origin VERSION)" = "command line" || { echo "usage: make release-tag VERSION=x.y.z"; exit 1; }
 	@git diff --quiet HEAD || { echo "commit or stash your changes first"; exit 1; }
 	@last=$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); \
-		git log --no-merges --format='- %s' $${last:+$$last..}HEAD >"$(TAG_MESSAGE)"
+		git log --no-merges --invert-grep --grep='^Release ' --format='- %s' $${last:+$$last..}HEAD >"$(TAG_MESSAGE)"
 	VERSION=$(VERSION) perl -0pi -e 's/^version = "[^"]*"/version = "$$ENV{VERSION}"/m' Cargo.toml
 	cargo update --workspace --offline --quiet
-	git commit --quiet -m "Release $(VERSION)" Cargo.toml Cargo.lock
+	@# Already at the version, e.g. after a tag was deleted: only tag again
+	git diff --quiet Cargo.toml Cargo.lock || git commit --quiet -m "Release $(VERSION)" Cargo.toml Cargo.lock
 	git tag -a v$(VERSION) --edit --file "$(TAG_MESSAGE)"
 	@echo "Tagged v$(VERSION). Start the release with: git push origin main v$(VERSION)"
 
