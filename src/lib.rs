@@ -15,6 +15,10 @@ mod source;
 mod state;
 mod sync;
 
+/// The version to show: the crate version, plus the commit for a build that
+/// is not of the release tag, e.g. `0.2.0 (abc1234)`.
+pub const VERSION: &str = env!("CAPYCAL_VERSION");
+
 pub use caldav::client::DiscoveredCalendar;
 pub use cli::discover::discover_caldav_calendars;
 pub use cli::generate::STARTER_CONFIG;

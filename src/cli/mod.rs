@@ -22,7 +22,7 @@ use crate::state::lock::ConfigLock;
 #[derive(Parser)]
 #[command(
     name = "capycal",
-    version,
+    version = crate::VERSION,
     about = "Calendar sync that knows how to keep a secret"
 )]
 pub struct Cli {

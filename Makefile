@@ -1,6 +1,6 @@
 .PHONY: help build build-ui build-gtk run run-ui run-app run-gtk test test-ui test-gtk test-caldav test-caldav-docker test-eventkit test-keychain \
        fmt lint clippy clippy-ui clippy-gtk notices check-notices clean \
-       release release-ui dist dist-macos app dmg dist-linux-x86_64 dist-linux-arm64 dist-linux \
+       release release-ui release-tag dist dist-macos app dmg dist-linux-x86_64 dist-linux-arm64 dist-linux \
        docker-build up down logs reload docker-build-dev up-dev down-dev logs-dev validate once \
        docs docs-serve docs-docker docs-serve-docker
 
@@ -129,6 +129,16 @@ release: ## Release build of the CLI
 
 release-ui: ## Release build with the menu bar app
 	cargo build --release --locked --features ui
+
+# Pushing the tag starts the release workflow (docs/src/development/releasing.md)
+release-tag: ## Set the version in Cargo.toml, commit and tag it: make release-tag VERSION=0.2.0
+	@test "$(origin VERSION)" = "command line" || { echo "usage: make release-tag VERSION=x.y.z"; exit 1; }
+	@git diff --quiet HEAD || { echo "commit or stash your changes first"; exit 1; }
+	VERSION=$(VERSION) perl -0pi -e 's/^version = "[^"]*"/version = "$$ENV{VERSION}"/m' Cargo.toml
+	cargo update --workspace --offline --quiet
+	git commit --quiet -m "Release $(VERSION)" Cargo.toml Cargo.lock
+	git tag -a v$(VERSION) -m "capycal $(VERSION)"
+	@echo "Tagged v$(VERSION). Start the release with: git push origin main v$(VERSION)"
 
 ifeq ($(UNAME_S),Darwin)
 dist: dist-macos dmg dist-linux ## Everything this host can build

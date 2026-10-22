@@ -1225,7 +1225,7 @@ impl SettingsScreen {
                 problem: self.problem.is_some(),
                 draft: false,
             },
-            version: format!("Version {}", env!("CARGO_PKG_VERSION")),
+            version: format!("Version {}", capycal::VERSION),
             banner,
             controls,
         }
@@ -5006,7 +5006,7 @@ interval = "5m"
         let (s, _, _) = screen("version", CONFIG, false);
         assert_eq!(
             s.current_view().version,
-            format!("Version {}", env!("CARGO_PKG_VERSION"))
+            format!("Version {}", capycal::VERSION)
         );
     }
 

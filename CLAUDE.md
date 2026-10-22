@@ -42,6 +42,7 @@ Guidelines for working on Capycal.
 Moving incrementally toward ports & adapters (no crate split, generics instead of `dyn`).
 
 - The crate is a library (`src/lib.rs`) plus thin binaries. `src/main.rs` is the `capycal` CLI and only calls `cli::execute`
+- Show the version as `capycal::VERSION` (from `build.rs`: the crate version, plus the commit unless HEAD is tagged `v<version>`), not `CARGO_PKG_VERSION`; that stays only where a plain version is needed (User-Agent). `make release-tag VERSION=x.y.z` bumps, commits and tags a release
 - Modules are private in `lib.rs`; expose items to binaries through `pub use` re-exports, not `pub mod`, so dead code is still caught. The one exception is `pub mod cli`, which `main.rs` uses directly
 - No GUI dependencies in the library or the default build. The `capycal` CLI must keep working without them
 - Ports: `src/source.rs` defines `EventSource` / `EventSink` (put, delete, `list_synced`: the sync's events in the sink by marker, `changes_since`: hrefs changed in the sink since a token, default `None`); `src/state/mod.rs` defines `SyncState` and the `StateStore` trait (load/save/remove per sync; `load` returns `None` for a missing or corrupt state)

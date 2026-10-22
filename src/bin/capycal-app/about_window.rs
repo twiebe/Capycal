@@ -23,10 +23,7 @@ pub fn show(acknowledgements: impl Fn() + 'static) {
         .build();
     let name = label("Capycal", &["title-1"]);
     let developer = label(crate::dialog::ABOUT_DEVELOPER, &[]);
-    let version = label(
-        &format!("Version {}", env!("CARGO_PKG_VERSION")),
-        &["dim-label"],
-    );
+    let version = label(&format!("Version {}", capycal::VERSION), &["dim-label"]);
     let quip = label(&crate::dialog::about_description(), &[]);
     let click = gtk::GestureClick::new();
     let weak = quip.downgrade();

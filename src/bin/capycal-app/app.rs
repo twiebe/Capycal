@@ -104,7 +104,7 @@ pub fn run(config_path: PathBuf) -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-    info!(version = env!("CARGO_PKG_VERSION"), config = %config_path.display(), "capycal-app started");
+    info!(version = capycal::VERSION, config = %config_path.display(), "capycal-app started");
     match ensure_config_file(&config_path) {
         Ok(true) => info!(config = %config_path.display(), "starter config written"),
         Ok(false) => {}

@@ -78,7 +78,7 @@ impl AboutWindow {
             true,
         );
         let version = label(
-            &format!("Version {}", env!("CARGO_PKG_VERSION")),
+            &format!("Version {}", capycal::VERSION),
             NSFont::systemFontOfSize(12.0),
             true,
         );
