@@ -16,7 +16,7 @@ categories = ["command-line-utilities"]
 [package.metadata.deb]
 maintainer = "Thomas Wiebe"
 copyright = "Thomas Wiebe"
-license-file = ["LICENSE", 0]
+license-file = "LICENSE"
 section = "utils"
 priority = "optional"
 extended-description = """\
