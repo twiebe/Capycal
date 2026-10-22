@@ -131,13 +131,17 @@ release-ui: ## Release build with the menu bar app
 	cargo build --release --locked --features ui
 
 # Pushing the tag starts the release workflow (docs/src/development/releasing.md)
+# The tag message starts as the commit subjects since the last release tag
+TAG_MESSAGE = $(shell git rev-parse --git-dir)/RELEASE_TAG_MSG
 release-tag: ## Set the version in Cargo.toml, commit and tag it: make release-tag VERSION=0.2.0
 	@test "$(origin VERSION)" = "command line" || { echo "usage: make release-tag VERSION=x.y.z"; exit 1; }
 	@git diff --quiet HEAD || { echo "commit or stash your changes first"; exit 1; }
+	@last=$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); \
+		git log --no-merges --format='- %s' $${last:+$$last..}HEAD >"$(TAG_MESSAGE)"
 	VERSION=$(VERSION) perl -0pi -e 's/^version = "[^"]*"/version = "$$ENV{VERSION}"/m' Cargo.toml
 	cargo update --workspace --offline --quiet
 	git commit --quiet -m "Release $(VERSION)" Cargo.toml Cargo.lock
-	git tag -a v$(VERSION) -m "capycal $(VERSION)"
+	git tag -a v$(VERSION) --edit --file "$(TAG_MESSAGE)"
 	@echo "Tagged v$(VERSION). Start the release with: git push origin main v$(VERSION)"
 
 ifeq ($(UNAME_S),Darwin)
