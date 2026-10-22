@@ -506,8 +506,8 @@ pub struct UpdatesInfo {
     pub checking: bool,
     /// The outcome of the last Check Now.
     pub note: Option<String>,
-    /// The package manager that installed the app.
-    pub installed_by: Option<String>,
+    /// The name of the package manager that installed the app.
+    pub manager: Option<String>,
 }
 
 /// What the copies of a new sync show, the wizard's last question.
@@ -2021,16 +2021,15 @@ impl SettingsScreen {
                 on: updates.enabled,
                 hint: None,
             });
-            let note = match (&updates.note, &updates.installed_by) {
+            let note = match (&updates.note, &updates.manager) {
                 _ if updates.checking => "Checking for updates\u{2026}".to_string(),
                 (Some(note), _) => note.clone(),
                 _ if updates.enabled => {
                     "Capycal looks for a new release on GitHub once a day.".to_string()
                 }
-                (None, Some(by)) => format!(
-                    "Installed with {}, which keeps Capycal up to date.",
-                    crate::updates::manager_name(by)
-                ),
+                (None, Some(manager)) => {
+                    format!("Installed with {manager}, which keeps Capycal up to date.")
+                }
                 (None, None) => {
                     "Capycal looks for a new release only when you press Check Now.".to_string()
                 }
@@ -4555,7 +4554,7 @@ interval = "5m"
             enabled: true,
             checking: false,
             note: None,
-            installed_by: None,
+            manager: None,
         }));
         assert!(matches!(
             find(&s.current_view(), &FieldId::CheckUpdates),
@@ -4595,18 +4594,18 @@ interval = "5m"
                 "Capycal looks for a new release only when you press Check Now.".to_string()
             )
         );
-        let off = |installed_by: Option<&str>| UpdatesInfo {
+        let off = |manager: Option<&str>| UpdatesInfo {
             enabled: false,
             checking: false,
             note: None,
-            installed_by: installed_by.map(String::from),
+            manager: manager.map(String::from),
         };
         s.set_updates(Some(off(None)));
         assert_eq!(
             note(&s).1,
             "Capycal looks for a new release only when you press Check Now."
         );
-        s.set_updates(Some(off(Some("homebrew"))));
+        s.set_updates(Some(off(Some("Homebrew"))));
         assert_eq!(
             note(&s).1,
             "Installed with Homebrew, which keeps Capycal up to date."
@@ -4621,7 +4620,7 @@ interval = "5m"
         );
         s.set_updates(Some(UpdatesInfo {
             note: Some("Capycal 0.2.0 is the latest version.".into()),
-            ..off(Some("homebrew"))
+            ..off(Some("Homebrew"))
         }));
         assert_eq!(
             note(&s),

@@ -910,7 +910,8 @@ impl App {
             enabled: state.enabled(),
             checking: self.update_checking,
             note: self.update_note.clone(),
-            installed_by: state.installed_by,
+            manager: (state.installed_by.as_deref())
+                .map(|by| updates::manager_name(by).to_string()),
         }
     }
 
