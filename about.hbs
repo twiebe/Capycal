@@ -1,0 +1,14 @@
+Third-party software in Capycal
+
+Capycal is built from the following open source crates. Their licenses and
+copyright notices follow, each with the crates it covers.
+{{#each licenses}}
+{{#unless (eq id "GPL-3.0-only")}}
+
+--------------------------------------------------------------------------------
+{{name}} ({{id}})
+Used by: {{#each used_by}}{{crate.name}} {{crate.version}}{{#unless @last}}, {{/unless}}{{/each}}
+
+{{{text}}}
+{{/unless}}
+{{/each}}

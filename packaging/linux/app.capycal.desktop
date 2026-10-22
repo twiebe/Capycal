@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Capycal
+GenericName=Calendar Sync
+Comment=Keep calendars in sync, stripped to busy blockers
+Exec=capycal-gtk
+Icon=app.capycal
+Terminal=false
+Categories=Office;Calendar;Utility;
+Keywords=calendar;sync;caldav;
+StartupNotify=false

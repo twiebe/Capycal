@@ -1,0 +1,16 @@
+services:
+  capycal:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./capycal.toml:/etc/capycal/capycal.toml:ro
+      - capycal-state:/var/lib/capycal
+    # Send SIGHUP to reload config without restart:
+    #   docker compose kill -s HUP capycal
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+volumes:
+  capycal-state:

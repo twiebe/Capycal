@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Static Linux build of the capycal CLI, exported as a single file.
+# Used by `make dist-linux-x86_64` / `make dist-linux-arm64`:
+#   docker buildx build --platform linux/arm64 --build-arg TARGET=aarch64-unknown-linux-musl \
+#     -f packaging/linux/Dockerfile.musl --output dist/aarch64-unknown-linux-musl .
+
+FROM rust:1.99-slim-trixie AS build
+ARG TARGET
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup target add "$TARGET"
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY src/ src/
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target,id=capycal-musl-$TARGET \
+    export "CC_$(echo "$TARGET" | tr - _)=musl-gcc" \
+    && cargo build --release --locked --target "$TARGET" \
+    && cp "target/$TARGET/release/capycal" /capycal
+
+FROM scratch
+COPY --from=build /capycal /capycal

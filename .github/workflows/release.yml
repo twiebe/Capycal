@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Manual runs build and upload artifacts but do not publish a release
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-15
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
+        env:
+          TARGET: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Test
+        run: cargo test --locked --target ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Install packaging tools
+        if: contains(matrix.target, 'linux')
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+
+      - name: Package
+        id: package
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          name="capycal-${GITHUB_REF_NAME//\//-}-${TARGET}"
+          if [[ "$TARGET" == *linux* ]]; then
+            # Tarball with man page, completions and units, plus .deb and .rpm
+            packaging/linux/build-packages.sh "$TARGET" "$name"
+          else
+            mkdir -p "dist/$name"
+            cp "target/$TARGET/release/capycal" README.md LICENSE CONTRIBUTORS.md THIRD-PARTY-NOTICES.txt capycal.example.toml "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/*.sha256
+          if-no-files-found: error
+
+  app:
+    name: macOS app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-app
+
+      - name: Test
+        run: cargo test --locked --features ui --bin capycal-ui
+
+      - name: Build app
+        run: packaging/macos/build-app.sh
+
+      - name: Build disk image
+        id: package
+        run: |
+          name="capycal-${GITHUB_REF_NAME//\//-}-macos"
+          packaging/macos/build-dmg.sh target/macos/Capycal.app "dist/$name.dmg"
+          (cd dist && shasum -a 256 "$name.dmg" > "$name.dmg.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+          if-no-files-found: error
+
+  gtk:
+    name: Linux app ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+
+      # Ubuntu 24.04's GTK 4.14 and libadwaita 1.5 are the oldest the app supports
+      - name: Install GTK 4 and libadwaita
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gtk-${{ matrix.target }}
+
+      - name: Test
+        run: cargo test --locked --features gtk --bin capycal-gtk
+
+      - name: Build
+        run: cargo build --release --locked --features gtk --bin capycal-gtk --target ${{ matrix.target }}
+
+      - name: Install packaging tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+
+      - name: Package
+        run: packaging/linux/build-gtk-packages.sh ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: capycal-gtk-${{ matrix.target }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.sha256
+          if-no-files-found: error
+
+  # Every package ships THIRD-PARTY-NOTICES.txt as committed: refuse to
+  # release a stale one
+  notices:
+    name: Third-party notices
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Third-party notices up to date
+        run: make check-notices
+
+  release:
+    needs: [build, app, gtk, notices]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      # Fine-grained token with write access to twiebe/homebrew-capycal; without
+      # it the formula and cask are only attached to the release
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write the AUR PKGBUILD
+        run: packaging/linux/aur/make-pkgbuild.sh dist dist/PKGBUILD
+      - name: Write the Homebrew formula and cask
+        run: packaging/homebrew/make-homebrew.sh dist dist
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag
+      - name: Update the Homebrew tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        run: |
+          git clone "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/twiebe/homebrew-capycal.git" tap
+          mkdir -p tap/Formula tap/Casks
+          cp dist/capycal.rb tap/Formula/
+          cp dist/capycal-app.rb tap/Casks/
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula Casks
+          git commit -m "capycal $GITHUB_REF_NAME"
+          git push

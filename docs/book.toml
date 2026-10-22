@@ -1,0 +1,32 @@
+[book]
+title = "Capycal Calendar Sync"
+authors = ["Thomas Wiebe"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+additional-css = ["theme/capycal.css"]
+site-url = "/docs/"
+git-repository-url = "https://github.com/twiebe/capycal"
+edit-url-template = "https://github.com/twiebe/capycal/edit/main/docs/{path}"
+
+# Pages of the old layout
+[output.html.redirect]
+"/cli.html" = "cli/reference.html"
+"/configuration/calendars.html" = "../concepts/calendars.html"
+"/configuration/credentials.html" = "../concepts/calendars.html#passwords"
+"/configuration/daemon.html" = "../cli/config-file.html#daemon-settings"
+"/configuration/overview.html" = "../cli/config-file.html"
+"/configuration/reference.html" = "../reference/options.html"
+"/configuration/reload-and-lock.html" = "../cli/config-file.html#reloading-the-config"
+"/configuration/syncs.html" = "../concepts/syncs.html"
+"/desktop-app-linux.html" = "app/linux.html"
+"/desktop-app.html" = "app/menu.html"
+"/macos.html" = "concepts/calendar-app.html"
+"/quick-start-app.html" = "app/quick-start.html"
+"/quick-start-cli.html" = "cli/quick-start.html"
+"/server.html" = "cli/server.html"
+"/transforms.html" = "concepts/transforms.html"

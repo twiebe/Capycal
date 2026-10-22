@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#F07EC0"/><stop offset="1" stop-color="#B83C8A"/>
+  </linearGradient>
+  <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#B98A60"/><stop offset="1" stop-color="#A87A52"/>
+  </linearGradient>
+  <filter id="blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+  <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feGaussianBlur stdDeviation="12"/></filter>
+  <clipPath id="squircle"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+</defs>
+<rect x="100" y="112" width="824" height="824" rx="185" fill="#000" opacity="0.28" filter="url(#shadow)"/>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+<g clip-path="url(#squircle)">
+<!-- body and head, peeking out of the water -->
+<ellipse cx="512" cy="900" rx="330" ry="150" fill="#86603F"/>
+<path d="M300 470 C300 370 360 345 512 345 C664 345 724 370 724 470 L724 760
+         C724 850 640 905 512 905 C384 905 300 850 300 760 Z" fill="url(#fur)"/>
+<ellipse cx="322" cy="392" rx="32" ry="24" fill="#86603F" transform="rotate(-25 322 392)"/>
+<ellipse cx="702" cy="392" rx="32" ry="24" fill="#86603F" transform="rotate(25 702 392)"/>
+<ellipse cx="325" cy="396" rx="15" ry="10" fill="#6B4A30" transform="rotate(-25 325 396)"/>
+<ellipse cx="699" cy="396" rx="15" ry="10" fill="#6B4A30" transform="rotate(25 699 396)"/>
+<!-- content, closed eyes and soft cheeks -->
+<path d="M372 520 Q402 544 432 520" fill="none" stroke="#3A2A20" stroke-width="14" stroke-linecap="round"/>
+<path d="M592 520 Q622 544 652 520" fill="none" stroke="#3A2A20" stroke-width="14" stroke-linecap="round"/>
+<ellipse cx="364" cy="585" rx="34" ry="24" fill="#F07EC0" opacity="0.35"/>
+<ellipse cx="660" cy="585" rx="34" ry="24" fill="#F07EC0" opacity="0.35"/>
+<path d="M362 680 C362 615 420 600 512 600 C604 600 662 615 662 680 L662 740 C662 800 600 815 512 815
+         C424 815 362 800 362 740 Z" fill="#6B4A30"/>
+<ellipse cx="468" cy="652" rx="17" ry="10" fill="#3A2A20" transform="rotate(20 468 652)"/>
+<ellipse cx="556" cy="652" rx="17" ry="10" fill="#3A2A20" transform="rotate(-20 556 652)"/>
+<path d="M512 690 L512 718 M512 718 Q490 740 470 728 M512 718 Q534 740 554 728" fill="none" stroke="#3A2A20"
+      stroke-width="9" stroke-linecap="round"/>
+<path d="M100 790 C180 760 260 820 340 790 C420 760 500 820 580 790 C660 760 740 820 820 790
+         C870 772 900 780 924 790 L924 924 L100 924 Z" fill="#BDE8F2" opacity="0.92"/>
+<path d="M100 830 C180 800 260 860 340 830 C420 800 500 860 580 830 C660 800 740 860 820 830 C870 812 900 820 924 830"
+      fill="none" stroke="#fff" stroke-width="8" opacity="0.6"/>
+<circle cx="800" cy="830" r="42" fill="#F5B82E"/><circle cx="790" cy="818" r="10" fill="#fff" opacity="0.5"/>
+<path d="M190 700 C170 670 210 650 190 620 C170 590 210 570 190 540" fill="none" stroke="#fff" stroke-width="12"
+      stroke-linecap="round" opacity="0.55"/>
+<path d="M840 680 C820 650 860 630 840 600 C820 570 860 550 840 520" fill="none" stroke="#fff" stroke-width="12"
+      stroke-linecap="round" opacity="0.55"/>
+</g>
+<g transform="rotate(-7 512.0 263.0)">
+<rect x="392" y="178" width="240" height="190" rx="33.6" fill="#000" opacity="0.18" filter="url(#blur)"/>
+<rect x="392" y="168" width="240" height="190" rx="33.6" fill="#fff"/>
+<clipPath id="cal"><rect x="392" y="168" width="240" height="190" rx="33.6"/></clipPath>
+<rect x="392" y="168" width="240" height="64.60000000000001" fill="#7C3AED" clip-path="url(#cal)"/>
+<g fill="#fff" transform="translate(467.8 215.8) scale(0.02081 -0.02081)"><path transform="translate(0.0 0)" d="M771 -24Q566 -24 406.0 69.5Q246 163 154.5 335.5Q63 508 63 744Q63 982 154.5 1154.5Q246 1327 406.0 1420.5Q566 1514 771 1514Q946 1514 1085.5 1446.0Q1225 1378 1314.0 1254.5Q1403 1131 1427 965H1116Q1089 1097 998.5 1169.5Q908 1242 775 1242Q585 1242 479.0 1107.5Q373 973 373 744Q373 517 479.0 382.5Q585 248 775 248Q907 248 997.5 320.0Q1088 392 1117 523H1427Q1403 357 1314.0 234.0Q1225 111 1085.5 43.5Q946 -24 771 -24Z"/><path transform="translate(1568.9 0)" d="M9 0 532 1490H928L1451 0H1110L1006 325H449L341 0ZM532 571H926L876 725Q841 839 806.0 957.0Q771 1075 731 1214Q691 1075 655.0 957.0Q619 839 583 725Z"/><path transform="translate(3111.8 0)" d="M111 0V1490H419V264H1096V0Z"/></g>
+<rect x="413.6" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="442.7" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="471.9" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#F59E0B"/>
+<rect x="501.0" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="530.2" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="559.3" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="588.5" y="249.9" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="413.6" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#10B981"/>
+<rect x="442.7" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="471.9" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="501.0" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="530.2" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="559.3" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#3B82F6"/>
+<rect x="588.5" y="282.6" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="413.6" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="442.7" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="471.9" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="501.0" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#10B981"/>
+<rect x="530.2" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="559.3" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+<rect x="588.5" y="315.2" width="21.9" height="25.5" rx="4.8" fill="#ECEEF2"/>
+</g>
+</svg>

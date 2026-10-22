@@ -1,0 +1,224 @@
+/* Capycal colors and type on top of the mdBook themes, matching capycal.app:
+   the steam-white page, plum text, magenta links from the icon's gradient and
+   the aqua of the hot spring. Inter is self-hosted in src/fonts. */
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/InterVariable.woff2") format("woff2");
+}
+
+:root {
+    --capycal-steam: #f6fbfc;
+    --capycal-onsen: #cfeff5;
+    --capycal-plum: #2b2033;
+    --capycal-plum-soft: #5d5266;
+    --capycal-line: #dce9ec;
+    --capycal-violet: #7c3aed;
+    --capycal-violet-soft: #efe7fd;
+    --capycal-magenta: #b83c8a;
+    --capycal-pink: #f07ec0;
+    --capycal-yuzu: #f5b82e;
+}
+
+/* Light themes */
+.light,
+.rust,
+html:not(.js) {
+    --bg: var(--capycal-steam);
+    --fg: var(--capycal-plum);
+    --sidebar-bg: #ffffff;
+    --sidebar-fg: var(--capycal-plum);
+    --sidebar-non-existant: #a99fb0;
+    --sidebar-active: #a8327c;
+    --sidebar-spacer: var(--capycal-line);
+    --sidebar-header-border-color: var(--capycal-magenta);
+    --scrollbar: #c9bfcf;
+    --icons: var(--capycal-plum-soft);
+    --icons-hover: #a8327c;
+    --links: #a8327c;
+    --inline-code-color: #5b21b6;
+    --quote-bg: #e9f8fb;
+    --quote-border: var(--capycal-onsen);
+    --table-border-color: var(--capycal-line);
+    --table-header-bg: #e9f8fb;
+    --table-alternate-bg: #fbfdfe;
+    --searchbar-border-color: var(--capycal-line);
+    --searchbar-bg: #ffffff;
+    --searchbar-fg: var(--capycal-plum);
+    --searchresults-border-color: var(--capycal-line);
+    --searchresults-li-bg: #fdeaf5;
+    --search-mark-bg: #f9c4e2;
+    --theme-popup-bg: #ffffff;
+    --theme-popup-border: var(--capycal-line);
+    --theme-hover: #fdeaf5;
+    --footnote-highlight: var(--capycal-pink);
+    --capycal-heading: var(--capycal-plum);
+    --capycal-code-bg: var(--capycal-violet-soft);
+    --capycal-pre-bg: #ffffff;
+}
+
+/* Dark themes: the same accents on mdBook's dark backgrounds */
+.coal,
+.navy,
+.ayu {
+    --links: var(--capycal-pink);
+    --sidebar-active: var(--capycal-pink);
+    --sidebar-header-border-color: var(--capycal-pink);
+    --icons-hover: var(--capycal-pink);
+    --inline-code-color: #d8c4fe;
+    --table-header-bg: rgba(207, 239, 245, 0.1);
+    --table-alternate-bg: rgba(207, 239, 245, 0.03);
+    --table-border-color: rgba(207, 239, 245, 0.14);
+    --quote-bg: rgba(207, 239, 245, 0.06);
+    --quote-border: rgba(207, 239, 245, 0.2);
+    --search-mark-bg: #8a2566;
+    --searchresults-li-bg: rgba(240, 126, 192, 0.12);
+    --theme-hover: rgba(240, 126, 192, 0.12);
+    --footnote-highlight: var(--capycal-pink);
+    --capycal-heading: #ffe3f2;
+    --capycal-code-bg: rgba(124, 58, 237, 0.2);
+    --capycal-pre-bg: rgba(255, 255, 255, 0.04);
+}
+
+html {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: "cv11", "ss03";
+}
+body {
+    font-size: 1.65rem;
+    line-height: 1.65;
+}
+
+/* A calm menu bar like the site's header: the icon and the name on the page
+   color, a hairline underneath */
+#mdbook-menu-bar,
+#mdbook-menu-bar.bordered {
+    background: var(--bg);
+    border-block-end: 1px solid var(--sidebar-spacer);
+    box-shadow: none;
+}
+.menu-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--capycal-heading);
+    font-weight: 700;
+    font-size: 1.9rem;
+    letter-spacing: -0.015em;
+}
+.menu-title::before {
+    content: "";
+    width: 28px;
+    height: 28px;
+    background: url("../logo.svg") center / 36px no-repeat;
+    flex: none;
+}
+.menu-bar .icon-button:focus-visible,
+.menu-bar a:focus-visible {
+    outline: 2px solid var(--sidebar-active);
+    outline-offset: -4px;
+}
+
+/* Sidebar: white like a page of the site, the current chapter in magenta */
+.sidebar {
+    border-inline-end: 1px solid var(--sidebar-spacer);
+    font-size: 1.5rem;
+}
+.chapter li.part-title {
+    color: var(--capycal-heading);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-block-start: 1.6em;
+}
+.chapter li a.active {
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--sidebar-active);
+    padding-inline-start: 8px;
+}
+
+/* Headings: Inter's display cut, tight like the site */
+.content :is(h1, h2, h3, h4) {
+    font-optical-sizing: auto;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+.content h1 {
+    font-size: 3.4rem;
+    letter-spacing: -0.03em;
+    margin-block-start: 1.2em;
+}
+.content h2 {
+    font-size: 2.5rem;
+    margin-block-start: 1.8em;
+}
+.content h3 {
+    font-size: 1.95rem;
+}
+.content :is(h1, h2, h3, h4) .header:is(:link, :visited) {
+    color: var(--capycal-heading);
+}
+
+.content a:link {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+.content a:link:hover {
+    text-decoration-color: var(--capycal-pink);
+    text-decoration-thickness: 2px;
+}
+
+/* Code: violet chips inline, white panels with a hairline for blocks */
+:not(pre) > .hljs,
+:not(pre) > code {
+    background: var(--capycal-code-bg);
+    border-radius: 5px;
+    padding: 0.1em 0.35em;
+}
+pre {
+    border-radius: 10px;
+}
+.light pre > .hljs,
+.rust pre > .hljs,
+html:not(.js) pre > .hljs {
+    background: var(--capycal-pre-bg);
+    box-shadow: inset 0 0 0 1px var(--capycal-line);
+    border-radius: 10px;
+}
+
+table {
+    border-radius: 10px;
+}
+table thead th {
+    color: var(--capycal-heading);
+}
+
+blockquote {
+    border-radius: 10px;
+    border-block: none;
+    border-inline-start: 4px solid var(--quote-border);
+}
+
+/* Admonitions on white with a hairline, like code blocks */
+.light blockquote.blockquote-tag,
+.rust blockquote.blockquote-tag,
+html:not(.js) blockquote.blockquote-tag {
+    background: #ffffff;
+    box-shadow: inset 0 0 0 1px var(--capycal-line);
+}
+
+::selection {
+    background: rgba(240, 126, 192, 0.35);
+}
+
+/* The app icon above the title of the introduction */
+.intro-logo {
+    display: block;
+    width: 140px;
+    height: 140px;
+    margin: 2rem 0 0 -10px;
+}

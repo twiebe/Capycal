@@ -1,0 +1,45 @@
+name: Docs
+
+# The book is published on capycal.app/docs by the Pages workflow of
+# twiebe/capycal-web. This one checks that it builds and, on main, asks
+# the website to rebuild.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MDBOOK_VERSION: v0.5.4
+  # Needs Contents write access to twiebe/capycal-web
+  WEBSITE_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install mdBook
+        run: |
+          mkdir -p "$RUNNER_TEMP/mdbook"
+          curl -sSfL "https://github.com/rust-lang/mdBook/releases/download/${MDBOOK_VERSION}/mdbook-${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/mdbook"
+          echo "$RUNNER_TEMP/mdbook" >> "$GITHUB_PATH"
+
+      - name: Build
+        run: mdbook build docs
+
+      - name: Publish on capycal.app
+        if: github.ref == 'refs/heads/main' && env.WEBSITE_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.WEBSITE_TOKEN }}
+        run: gh api repos/twiebe/capycal-web/dispatches -f event_type=docs

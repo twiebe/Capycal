@@ -1,0 +1,27 @@
+# User service, runs as your user with the default config and state paths.
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp capycal-user.service ~/.config/systemd/user/capycal.service
+#   systemctl --user daemon-reload && systemctl --user enable --now capycal
+#
+# Passwords: use { file = "..." } in capycal.toml, or put VAR=value lines into
+# ~/.config/capycal/capycal.env (chmod 600).
+# To keep it running while logged out: loginctl enable-linger $USER
+
+[Unit]
+Description=Capycal Calendar Sync daemon
+Documentation=https://github.com/twiebe/capycal
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/capycal
+ExecReload=/bin/kill -HUP $MAINPID
+EnvironmentFile=-%h/.config/capycal/capycal.env
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=45s
+
+[Install]
+WantedBy=default.target

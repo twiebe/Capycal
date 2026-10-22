@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is the only place where the EventKit adapter is compiled for real
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - name: Install cargo-about
+        if: runner.os == 'Linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Third-party notices up to date
+        if: runner.os == 'Linux'
+        run: make check-notices
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      - name: CalDAV end-to-end tests
+        if: runner.os == 'Linux'
+        run: make test-caldav
+      # The menu bar app; on Linux only its display-free parts and a stub main compile
+      - name: Clippy (ui)
+        run: cargo clippy --locked --all-targets --features ui -- -D warnings
+      - name: Test (ui)
+        run: cargo test --locked --features ui --bin capycal-ui
+      - name: Install GTK 4 and libadwaita
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+      - name: Clippy (GTK app)
+        if: runner.os == 'Linux'
+        run: cargo clippy --locked --features gtk --bin capycal-gtk --tests -- -D warnings
+      - name: Test (GTK app)
+        if: runner.os == 'Linux'
+        run: cargo test --locked --features gtk --bin capycal-gtk

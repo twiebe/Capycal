@@ -1,0 +1,46 @@
+# System service. Install:
+#   sudo install -m 0755 capycal /usr/local/bin/capycal
+#   sudo install -D -m 0644 capycal.toml /etc/capycal/capycal.toml    # no passwords in here
+#   sudo install -D -m 0600 capycal.env /etc/capycal/capycal.env   # passwords, see capycal.toml { env = "..." }
+#   sudo cp capycal.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now capycal
+#
+# State goes to /var/lib/capycal via CAPYCAL_STATE_DIR below (state_dir in capycal.toml wins).
+# Reload the config without restart: sudo systemctl reload capycal
+
+[Unit]
+Description=Capycal Calendar Sync daemon
+Documentation=https://github.com/twiebe/capycal
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/capycal --config /etc/capycal/capycal.toml
+ExecReload=/bin/kill -HUP $MAINPID
+EnvironmentFile=-/etc/capycal/capycal.env
+Environment=CAPYCAL_STATE_DIR=/var/lib/capycal
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=45s
+
+DynamicUser=yes
+StateDirectory=capycal
+ConfigurationDirectory=capycal
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

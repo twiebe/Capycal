@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.envrc
+/target
+/tmp
+/dist/
+/docs/book/
+/.claude/settings.local.json
+/.superpowers/
+/docs/superpowers/

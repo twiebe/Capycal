@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for capycal. Replace USERNAME below, then:
+    cp app.capycal.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/app.capycal.plist
+  Stop / remove:
+    launchctl bootout gui/$(id -u)/app.capycal
+  Reload the config without restart:
+    launchctl kill HUP gui/$(id -u)/app.capycal
+
+  Passwords: use { file = "..." } in capycal.toml rather than EnvironmentVariables,
+  so they don't end up in this plist.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>app.capycal</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/capycal</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/USERNAME/Library/Logs/capycal.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/USERNAME/Library/Logs/capycal.log</string>
+</dict>
+</plist>

@@ -1,0 +1,27 @@
+services:
+  capycal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./capycal.toml:/etc/capycal/capycal.toml:ro
+      - capycal-state-dev:/var/lib/capycal
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+
+  # Local CalDAV server for development and testing
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    ports:
+      - "5232:5232"
+    volumes:
+      - radicale-data:/data
+    environment:
+      # Disable auth for local dev
+      RADICALE_AUTH__TYPE: none
+
+volumes:
+  capycal-state-dev:
+  radicale-data:

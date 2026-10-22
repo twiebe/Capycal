@@ -1,0 +1,178 @@
+[package]
+name = "capycal"
+version = "0.1.0"
+edition = "2024"
+default-run = "capycal"
+description = "Calendar sync that knows how to keep a secret"
+license = "GPL-3.0-only"
+homepage = "https://capycal.app"
+repository = "https://github.com/twiebe/capycal"
+readme = "README.md"
+keywords = ["caldav", "calendar", "sync", "eventkit", "ical"]
+categories = ["command-line-utilities"]
+
+# Linux packages, built by packaging/linux/build-packages.sh from the
+# generated files in dist/pkg
+[package.metadata.deb]
+maintainer = "Thomas Wiebe"
+copyright = "Thomas Wiebe"
+license-file = ["LICENSE", 0]
+section = "utils"
+priority = "optional"
+extended-description = """\
+Capycal copies events from one calendar to another and strips what the other \
+side should not see, e.g. work meetings as "Busy" blockers in a personal \
+calendar. It works with any CalDAV server. Run it as a systemd service with \
+`capycal --install-service` or the shipped units."""
+assets = [
+    ["target/release/capycal", "usr/bin/", "755"],
+    ["dist/pkg/capycal.1", "usr/share/man/man1/", "644"],
+    ["dist/pkg/capycal.bash", "usr/share/bash-completion/completions/capycal", "644"],
+    ["dist/pkg/_capycal", "usr/share/zsh/vendor-completions/", "644"],
+    ["dist/pkg/capycal.fish", "usr/share/fish/vendor_completions.d/", "644"],
+    ["dist/pkg/capycal.service", "usr/lib/systemd/system/", "644"],
+    ["dist/pkg/capycal-user.service", "usr/lib/systemd/user/capycal.service", "644"],
+    ["capycal.example.toml", "usr/share/doc/capycal/", "644"],
+    ["README.md", "usr/share/doc/capycal/", "644"],
+    ["CONTRIBUTORS.md", "usr/share/doc/capycal/", "644"],
+    ["THIRD-PARTY-NOTICES.txt", "usr/share/doc/capycal/", "644"],
+]
+
+# The desktop app as its own package (glibc build with GTK)
+[package.metadata.deb.variants.gtk]
+name = "capycal-gtk"
+depends = "libc6, libgtk-4-1 (>= 4.14), libadwaita-1-0 (>= 1.5)"
+extended-description = """\
+The Capycal desktop app: a tray icon that runs your calendar syncs in the \
+background, with a log window, problem reports and calendar discovery. \
+GNOME needs the AppIndicator extension to show tray icons."""
+assets = [
+    ["target/release/capycal-gtk", "usr/bin/", "755"],
+    ["packaging/linux/app.capycal.desktop", "usr/share/applications/", "644"],
+    ["dist/pkg-gtk/icon-16.png", "usr/share/icons/hicolor/16x16/apps/app.capycal.png", "644"],
+    ["dist/pkg-gtk/icon-32.png", "usr/share/icons/hicolor/32x32/apps/app.capycal.png", "644"],
+    ["dist/pkg-gtk/icon-128.png", "usr/share/icons/hicolor/128x128/apps/app.capycal.png", "644"],
+    ["dist/pkg-gtk/icon-256.png", "usr/share/icons/hicolor/256x256/apps/app.capycal.png", "644"],
+    ["dist/pkg-gtk/icon-512.png", "usr/share/icons/hicolor/512x512/apps/app.capycal.png", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-heart-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-sync-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-check-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-tray-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-tray-error-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-tray-syncing-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-tray-inactive-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-gtk/icons/capycal-calendar-remove-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-ui/assets/OCTICONS-LICENSE", "usr/share/doc/capycal-gtk/", "644"],
+    ["src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", "usr/share/doc/capycal-gtk/", "644"],
+    ["CONTRIBUTORS.md", "usr/share/doc/capycal-gtk/", "644"],
+    ["THIRD-PARTY-NOTICES.txt", "usr/share/doc/capycal-gtk/", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/capycal", dest = "/usr/bin/capycal", mode = "755" },
+    { source = "dist/pkg/capycal.1", dest = "/usr/share/man/man1/capycal.1", mode = "644", doc = true },
+    { source = "dist/pkg/capycal.bash", dest = "/usr/share/bash-completion/completions/capycal", mode = "644" },
+    { source = "dist/pkg/_capycal", dest = "/usr/share/zsh/site-functions/_capycal", mode = "644" },
+    { source = "dist/pkg/capycal.fish", dest = "/usr/share/fish/vendor_completions.d/capycal.fish", mode = "644" },
+    { source = "dist/pkg/capycal.service", dest = "/usr/lib/systemd/system/capycal.service", mode = "644" },
+    { source = "dist/pkg/capycal-user.service", dest = "/usr/lib/systemd/user/capycal.service", mode = "644" },
+    { source = "capycal.example.toml", dest = "/usr/share/doc/capycal/capycal.example.toml", mode = "644", doc = true },
+    { source = "README.md", dest = "/usr/share/doc/capycal/README.md", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/capycal/LICENSE", mode = "644", doc = true },
+    { source = "CONTRIBUTORS.md", dest = "/usr/share/licenses/capycal/CONTRIBUTORS.md", mode = "644", doc = true },
+    { source = "THIRD-PARTY-NOTICES.txt", dest = "/usr/share/licenses/capycal/THIRD-PARTY-NOTICES.txt", mode = "644", doc = true },
+]
+
+
+[package.metadata.generate-rpm.variants.gtk]
+name = "capycal-gtk"
+requires = { gtk4 = ">= 4.14", libadwaita = ">= 1.5" }
+assets = [
+    { source = "target/release/capycal-gtk", dest = "/usr/bin/capycal-gtk", mode = "755" },
+    { source = "packaging/linux/app.capycal.desktop", dest = "/usr/share/applications/app.capycal.desktop", mode = "644" },
+    { source = "dist/pkg-gtk/icon-16.png", dest = "/usr/share/icons/hicolor/16x16/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-gtk/icon-32.png", dest = "/usr/share/icons/hicolor/32x32/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-gtk/icon-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-gtk/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-gtk/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/app.capycal.png", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-heart-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-heart-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-sync-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-sync-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-check-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-check-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-tray-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-tray-error-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-error-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-tray-syncing-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-syncing-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-tray-inactive-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-inactive-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-gtk/icons/capycal-calendar-remove-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-calendar-remove-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-ui/assets/OCTICONS-LICENSE", dest = "/usr/share/doc/capycal-gtk/OCTICONS-LICENSE", mode = "644", doc = true },
+    { source = "src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", dest = "/usr/share/doc/capycal-gtk/SIMPLE-ICONS-LICENSE", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/capycal-gtk/LICENSE", mode = "644", doc = true },
+    { source = "CONTRIBUTORS.md", dest = "/usr/share/licenses/capycal-gtk/CONTRIBUTORS.md", mode = "644", doc = true },
+    { source = "THIRD-PARTY-NOTICES.txt", dest = "/usr/share/licenses/capycal-gtk/THIRD-PARTY-NOTICES.txt", mode = "644", doc = true },
+]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = { version = "1.1", features = ["preserve_order"] }
+keyring-core = "1"
+toml_edit = "0.25"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "v5"] }
+humantime = "2"
+chrono = { version = "0.4", default-features = false, features = ["alloc", "now", "serde"] }
+reqwest = { version = "0.13", features = ["rustls", "json"], default-features = false }
+directories = "6"
+rpassword = "7"
+chrono-tz = "0.10.4"
+iana-time-zone = "0.1.65"
+notify = "8"
+clap_complete = "4"
+clap_mangen = "0.3"
+# The GTK desktop app (capycal-gtk). The tray is Linux-only; the windows also
+# build on macOS with Homebrew's gtk4 and libadwaita, for development.
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"], optional = true }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_5"], optional = true }
+async-channel = { version = "2", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+security-framework = "3.7"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSCalendar", "NSTimeZone", "NSError", "NSObjCRuntime", "NSValue"] }
+objc2-event-kit = { version = "0.3", features = ["EKAlarm", "EKEventStore", "EKEvent", "EKCalendar", "EKCalendarItem", "EKObject", "EKSource", "EKRecurrenceRule", "EKRecurrenceEnd", "EKRecurrenceDayOfWeek", "EKTypes", "EKStructuredLocation"] }
+block2 = "0.6"
+# capycal-ui (feature "ui"); the menu bar app only exists on macOS for now
+tray-icon = { version = "0.26", default-features = false, optional = true }
+tao = { version = "0.37", default-features = false, features = ["rwh_06"], optional = true }
+rfd = { version = "0.17", default-features = false, optional = true }
+objc2-service-management = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-foundation", "SMAppService"], optional = true }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSAttributedString", "NSBezierPath", "NSBox", "NSButton", "NSButtonCell", "NSCell", "NSClickGestureRecognizer", "NSClipView", "NSColor", "NSComboBox", "NSControl", "NSCursor", "NSEvent", "NSFont", "NSFontDescriptor", "NSGestureRecognizer", "NSGraphics", "NSImage", "NSImageView", "NSLayoutAnchor", "NSLayoutConstraint", "NSMenu", "NSMenuItem", "NSPanel", "NSParagraphStyle", "NSPasteboard", "NSPopUpButton", "NSProgressIndicator", "NSResponder", "NSScrollView", "NSSearchField", "NSSecureTextField", "NSSegmentedControl", "NSStackView", "NSSwitch", "NSStatusBarButton", "NSStatusItem", "NSText", "NSTextField", "NSTrackingArea", "NSTextStorage", "NSTextView", "NSUserInterfaceLayout", "NSView", "NSVisualEffectView", "NSWindow", "block2", "objc2-core-foundation"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+ksni = { version = "0.3", default-features = false, features = ["tokio", "blocking"], optional = true }
+
+[features]
+gtk = ["dep:gtk", "dep:adw", "dep:async-channel", "dep:ksni"]
+ui = ["dep:tray-icon", "dep:tao", "dep:rfd", "dep:objc2-service-management", "dep:objc2-app-kit", "objc2-foundation/NSAttributedString", "objc2-foundation/NSData", "objc2-foundation/NSDictionary", "objc2-foundation/NSGeometry", "objc2-foundation/NSNotification", "objc2-foundation/NSRange", "objc2-foundation/NSURL", "objc2-foundation/NSUserDefaults"]
+
+[[bin]]
+name = "capycal-gtk"
+path = "src/bin/capycal-gtk/main.rs"
+required-features = ["gtk"]
+
+[[bin]]
+name = "capycal-ui"
+path = "src/bin/capycal-ui/main.rs"
+required-features = ["ui"]
+
+[dev-dependencies]
+keyring-core = { version = "1", features = ["sample"] }
+wiremock = "0.6.5"
+tokio = { version = "1", features = ["test-util"] }

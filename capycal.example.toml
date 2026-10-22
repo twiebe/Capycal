@@ -1,0 +1,138 @@
+# Capycal - Calendar Sync
+# Example configuration file. Unknown keys are errors; [daemon] is optional.
+
+[daemon]
+# state_dir = "/var/lib/capycal"  # optional - defaults to $CAPYCAL_STATE_DIR, else the OS state dir (e.g. ~/.local/state/capycal/)
+log_level = "info"
+# log_format = "json"    # default: "pretty"
+# watch_config = false  # reload automatically when this file changes
+
+# Accounts - a CalDAV server and the credentials its calendars use.
+
+[accounts.work]
+url = "https://caldav.work.example.com/"
+username = "alice"
+password = { env = "CAPYCAL_WORK_PASSWORD" }
+# password = { command = "secret-tool lookup service capycal account work" }  # or from a keyring
+# password = { keychain = "work" }  # macOS Keychain / Secret Service entry app.capycal / work
+
+[accounts.nextcloud]
+url = "https://nextcloud.example.com/remote.php/dav/"
+username = "alice"
+password = { file = "/run/secrets/nextcloud_pw" }
+
+# Calendars - unified, role-agnostic definitions.
+# A calendar can be source, target, or both (for bidirectional sync).
+
+[calendars.work]
+account = "work"
+url = "https://caldav.work.example.com/calendars/default/"
+# concurrency = 2  # max events written to this calendar at once as a target, shared by
+#                  # all syncs writing to it; also parallel deletes of --purge/--purge-all (default: 2)
+
+[calendars.personal]
+account = "nextcloud"
+url = "https://nextcloud.example.com/remote.php/dav/calendars/alice/personal/"
+
+[calendars.work_blockers]
+account = "work"
+url = "https://caldav.work.example.com/calendars/personal-blockers/"
+
+[calendars.personal_blockers]
+account = "nextcloud"
+url = "https://nextcloud.example.com/remote.php/dav/calendars/alice/work-blockers/"
+
+# A read-only calendar feed, only usable as a source: an https:// or webcal://
+# address that returns an .ics file, such as Google Calendar's "Secret address in
+# iCal format" or a published Outlook.com calendar. No account. The address is a
+# secret, so it takes every password form: a string, { env = "..." },
+# { file = "..." }, { command = "..." } or { keychain = "..." }. Google refreshes
+# its feed only every few hours; an interval of 30m is plenty.
+# [calendars.google]
+# ics_url = { env = "CAPYCAL_GOOGLE_FEED" }
+
+# Syncs - each wires a source calendar to a target calendar via transforms.
+# Bidirectional sync = two syncs pointing at the same calendars in opposite directions.
+
+# Sync work events to personal calendar as blockers
+[syncs.work-to-personal]
+source = "work"
+target = "personal_blockers"
+interval = "5m"
+# Times, recurrence, status and free/busy (DTSTART, DTEND, DURATION, RRULE,
+# RDATE, EXDATE, STATUS, TRANSP) are always copied; cancelled events are skipped.
+# Opt-in: content properties/components copied on top. Leave `fields` out for
+# busy blockers. Use "VALARM" to preserve existing notifications from the source.
+# fields = ["LOCATION", "VALARM"]
+# Compare the whole source with the target this often and clean up: create missing
+# events, update changed ones, remove duplicates and events no longer wanted
+# (default: "7d"). Also runs when the state is lost and with --full-sync.
+full_sync_interval = "7d"
+# Keep the sync in the config but stop it (default: true)
+# enabled = false
+
+# Transforms are applied in order to the synced event. Write them as a list
+# inside the sync's table, one transform per line.
+# Available actions: "set_field", "replace_field", "replace_field_regex",
+#                    "remove_field", "add_buffer", "add_alarm", "skip"
+# Available placeholders: {{source_name}}, {{source_url}}, {{sync_name}}
+# Any transform can have conditions in `when`: it runs only if all of them
+# match the event as the transforms above it left it. A condition tests a
+# property (contains, matches a regex, empty; a missing property is empty) or
+# the time (days with start_time / end_time in local time, all_day). not = true
+# turns contains, matches and days around. { any = [...] } groups conditions of
+# which only one has to match. "skip" leaves out the event and
+# needs at least one condition. Put conditions on a property above a
+# transform that sets it to test the event's own value.
+transforms = [
+  # Drop events whose title in the source matches, before SUMMARY is replaced
+  # { action = "skip", when = [{ field = "SUMMARY", matches = "(?i)private" }] },
+  # The same without a regex: drop events whose location contains "Canteen"
+  # { action = "skip", when = [{ field = "LOCATION", contains = "Canteen" }] },
+  # Drop all-day events
+  # { action = "skip", when = [{ all_day = true }] },
+  # Drop weekend events. days/start_time/end_time are evaluated in the system's
+  # local timezone, regardless of the timezone of the source event's DTSTART.
+  # { action = "skip", when = [{ days = ["sat", "sun"] }] },
+  # Drop events before 08:00 and from 18:00 on weekdays: a start_time after the
+  # end_time wraps around midnight. Conditions with times never match all-day events.
+  # { action = "skip", when = [{ days = ["mon", "tue", "wed", "thu", "fri"], start_time = "18:00", end_time = "07:59" }] },
+  { field = "SUMMARY", action = "set_field", value = "Busy ({{source_name}})" },
+  # Add travel/buffer time around events (skips full-day events), longer for
+  # events at a place that is not a video call
+  { action = "add_buffer", pre_event = "15m", post_event = "15m" },
+  { action = "add_buffer", pre_event = "30m", when = [
+      { field = "LOCATION", empty = false },
+      { field = "LOCATION", contains = "zoom.us", not = true },
+  ] },
+  # Add notification alarms (multiple allowed)
+  { action = "add_alarm", trigger = "15m" },
+  { action = "add_alarm", trigger = "1m" },
+  # And an earlier one for events at the airport or at the station
+  { action = "add_alarm", trigger = "2h", when = [{ any = [
+      { field = "LOCATION", contains = "Airport" },
+      { field = "LOCATION", contains = "Station" },
+  ] }] },
+]
+
+# Sync personal events to work calendar as blockers
+[syncs.personal-to-work]
+source = "personal"
+target = "work_blockers"
+interval = "10m"
+transforms = [
+  { field = "SUMMARY", action = "set_field", value = "Personal" },
+]
+
+# EventKit source example (macOS only)
+# Use `capycal --discover-eventkit` to find calendar IDs and names.
+#
+# [syncs.mac-to-blockers]
+# source = "work_mac"
+# target = "work_blockers"
+# interval = "5m"
+# eventkit_days_past = 30      # how far back to query (default: 30)
+# eventkit_days_future = 365   # how far ahead to query (default: 365)
+# past + future must be at most 1460 days: Calendar.app returns nothing for a
+# single query over about 4 years. For more, use eventkit_all_events instead.
+# eventkit_all_events = false   # query 20 years back and 4 ahead in chunks (default: false)
