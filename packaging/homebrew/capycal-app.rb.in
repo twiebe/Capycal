@@ -9,19 +9,22 @@ cask "capycal-app" do
   homepage "https://capycal.app"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   # The bundled CLI is not linked, so the cask and the capycal formula can be
   # installed side by side
   app "Capycal.app"
 
   # Homebrew updates the app: its own update check starts switched off
-  postflight do
-    system_command "/usr/bin/defaults", args: ["write", "app.capycal", "InstalledBy", "homebrew"]
+  # (the steps run in a sandbox that may only write the preferences)
+  postflight_steps do
+    run "/usr/bin/defaults", args: ["write", "app.capycal", "InstalledBy", "homebrew"],
+        writable_paths: ["Library/Preferences"], writable_base: :home
   end
 
-  uninstall_postflight do
-    system_command "/usr/bin/defaults", args: ["delete", "app.capycal", "InstalledBy"]
+  uninstall_postflight_steps do
+    run "/usr/bin/defaults", args: ["delete", "app.capycal", "InstalledBy"], must_succeed: false,
+        writable_paths: ["Library/Preferences"], writable_base: :home
   end
 
   uninstall quit:      "app.capycal",
