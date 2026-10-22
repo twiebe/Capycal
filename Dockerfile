@@ -3,7 +3,7 @@ FROM rust:1.99-slim-trixie AS builder
 WORKDIR /build
 
 # Cache dependency builds: copy manifests first, build a dummy, then copy source
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs
 RUN cargo build --release && rm -rf src
 
