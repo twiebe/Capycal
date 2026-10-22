@@ -15,6 +15,15 @@ cask "capycal-app" do
   # installed side by side
   app "Capycal.app"
 
+  # Homebrew updates the app: its own update check starts switched off
+  postflight do
+    system_command "/usr/bin/defaults", args: ["write", "app.capycal", "InstalledBy", "homebrew"]
+  end
+
+  uninstall_postflight do
+    system_command "/usr/bin/defaults", args: ["delete", "app.capycal", "InstalledBy"]
+  end
+
   uninstall quit:      "app.capycal",
             launchctl: "app.capycal-ui"
 

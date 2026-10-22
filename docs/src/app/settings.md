@@ -31,3 +31,14 @@ What each setting does, with its key in the config: [Calendars and accounts](../
 ## General
 
 **General** at the top of the list holds the app's own settings: **Start Capycal at login**, the **Log level** (written as `[daemon] log_level`; a filter written by hand shows as "Custom") with **Show Log**, and the **Config file** with **Open in Editor…** and **Show in Finder**. When something keeps the config from running, General turns orange and starts with **Needs attention**: the mistake in the config file (where it is and what is wrong) with **Open in Editor…**, another Capycal process holding the config with **Reload Config**, or a failed removal of synced events with **Show Log**. Settings also opens when the config file cannot be read at all, then with only General, and shows everything once the file is fixed. **Open in Editor…** writes the starter config if the file is missing and opens it in the app for `.toml` files, or in the default text editor. Saving it reloads the syncs. Settings and your own edits can be mixed: Settings keeps your comments and only replaces the entries it changes. To find calendar URLs and identifiers for hand-written entries, use `capycal --discover` and `capycal --discover-eventkit` (see [CLI reference](../cli/reference.md#discover)).
+
+### Updates
+
+On macOS, **Updates** on General has **Check for updates automatically** and **Check Now**. With the switch on, Capycal looks for a new release on GitHub once a day and shows a window when there is one:
+
+- **View Release on GitHub** opens the release page; the window stays open.
+- **Update Now** downloads the new version, checks it against the release's checksum, replaces `Capycal.app` and starts the new version. Settings that are not saved are lost. macOS may then ask again for calendar access and, for CalDAV accounts, for the Keychain, since the app is not signed with an Apple Developer ID. If the update fails, for example because Capycal is not allowed to write to its folder, the installed version stays and the window says why.
+- **Remind Me Later** shows the window again in three days at the earliest; closing the window does the same.
+- **Skip This Version** stops the reminders for this version. A newer one is shown again.
+
+**Check Now** looks at once, also with the switch off and for a skipped version, and says below the button whether Capycal is up to date. An app installed with [Homebrew](../installation.md#homebrew) starts with the switch off, and its window has no **Update Now**: it shows `brew upgrade --cask capycal-app` instead. The Linux app has no update check; its packages update it.

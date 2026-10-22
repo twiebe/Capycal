@@ -26,7 +26,7 @@ brew install twiebe/capycal/capycal              # CLI (macOS on Apple silicon, 
 brew install --cask twiebe/capycal/capycal-app   # desktop app (macOS)
 ```
 
-The formula installs `capycal` with the man page and shell completions; `brew services start capycal` runs it in the background with your default config. The cask installs `Capycal.app` without linking its bundled CLI, so both can be installed side by side. The app is not notarized either: before its first start, remove the quarantine flag as described under [macOS app](#macos-app).
+The formula installs `capycal` with the man page and shell completions; `brew services start capycal` runs it in the background with your default config. The cask installs `Capycal.app` without linking its bundled CLI, so both can be installed side by side. Update the app with `brew upgrade --cask capycal-app`: the cask switches off the app's own [update check](app/settings.md#updates). The app is not notarized either: before its first start, remove the quarantine flag as described under [macOS app](#macos-app).
 
 ## macOS app
 
@@ -37,7 +37,8 @@ The formula installs `capycal` with the man page and shell completions; `brew se
    xattr -dr com.apple.quarantine /Applications/Capycal.app
    ```
 
-3. When Capycal first reads Calendar.app, macOS asks for calendar access for "Capycal". Allow it. You can change this later in System Settings > Privacy & Security > Calendars.
+3. Capycal looks for new releases once a day and offers to install them (see [Updates](app/settings.md#updates)).
+4. When Capycal first reads Calendar.app, macOS asks for calendar access for "Capycal". Allow it. You can change this later in System Settings > Privacy & Security > Calendars.
 
 The bundle also contains the `capycal` CLI. To use it from a terminal:
 

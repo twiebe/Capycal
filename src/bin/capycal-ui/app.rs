@@ -4,6 +4,8 @@
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use block2::RcBlock;
@@ -14,7 +16,7 @@ use capycal::{
 use chrono::Utc;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
-use objc2::runtime::Bool;
+use objc2::runtime::{AnyObject, Bool};
 use objc2_app_kit::{
     NSApplication, NSBezierPath, NSColor, NSCompositingOperation, NSImage, NSRectFillUsingOperation,
 };
@@ -24,7 +26,7 @@ use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget};
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tray_icon::menu::{IsMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
@@ -45,6 +47,11 @@ use crate::settings::Confirm;
 use crate::settings_view::{self, SettingsInput, SettingsScreen};
 use crate::settings_window_macos::{RawInput, SettingsWindow};
 use crate::sponsor::{self, Answer, SponsorState};
+use crate::updater;
+use crate::updates::{self, Release, Step, UpdateDialog, UpdateState};
+
+/// The version the update check compares with, without the commit.
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Refresh of the "synced 2 min ago" texts.
 const MENU_REFRESH: Duration = Duration::from_secs(30);
@@ -73,6 +80,15 @@ enum UserEvent {
     Sponsor(PanelInput),
     /// The Keychain note was answered or closed.
     KeychainNotice,
+    /// A look for a new release ended; `manual` for Check Now.
+    UpdateChecked {
+        manual: bool,
+        result: Result<Release, String>,
+    },
+    UpdateStep(Step),
+    /// The update replaced this bundle, or failed.
+    UpdateInstalled(Result<PathBuf, String>),
+    Update(PanelInput),
 }
 
 struct App {
@@ -119,6 +135,13 @@ struct App {
     settings_offered: bool,
     /// The sponsor dialog was shown in this run of the app.
     sponsor_asked: bool,
+    update_window: Option<(DialogWindow, UpdateDialog)>,
+    /// A look for a new release runs.
+    update_checking: bool,
+    /// Set to stop the running update.
+    update_cancel: Option<Arc<AtomicBool>>,
+    /// The outcome of the last Check Now, for General.
+    update_note: Option<String>,
     next_menu_refresh: Instant,
     next_log_poll: Instant,
 }
@@ -197,6 +220,10 @@ pub fn run(config_path: PathBuf) -> ExitCode {
         settings_question: None,
         settings_offered: false,
         sponsor_asked: false,
+        update_window: None,
+        update_checking: false,
+        update_cancel: None,
+        update_note: None,
         menu: None,
         tray_status: None,
         next_menu_refresh: Instant::now(),
@@ -314,6 +341,19 @@ impl App {
             {
                 self.send(Command::KeychainNoticeClosed);
             }
+            Event::UserEvent(UserEvent::UpdateChecked { manual, result }) => {
+                self.on_update_checked(manual, result)
+            }
+            Event::UserEvent(UserEvent::UpdateStep(step)) => {
+                if let Some((window, dialog)) = &mut self.update_window {
+                    dialog.step(step);
+                    window.show(dialog.view());
+                }
+            }
+            Event::UserEvent(UserEvent::UpdateInstalled(result)) => {
+                self.on_update_installed(result)
+            }
+            Event::UserEvent(UserEvent::Update(input)) => self.on_update_input(input),
             Event::UserEvent(UserEvent::Problems(input)) => match input {
                 PanelInput::Button(0) => self.send(Command::EditConfig),
                 PanelInput::Button(1) => self.send(Command::Reload),
@@ -326,6 +366,7 @@ impl App {
         let now = Instant::now();
         if now >= self.next_menu_refresh {
             self.refresh_menu();
+            self.check_for_updates_when_due();
         }
         let mut wake = self.next_menu_refresh;
         if let Some(log) = &mut self.log_window {
@@ -356,6 +397,7 @@ impl App {
             || self.purge_all_window.is_some()
             || self.sponsor_window.is_some()
             || self.keychain_window.is_some()
+            || self.update_window.is_some()
             || self.settings_window.is_some();
         if windows == self.in_dock {
             return;
@@ -553,6 +595,7 @@ impl App {
         self.purge_all_window = None;
         self.sponsor_window = None;
         self.keychain_window = None;
+        self.update_window = None;
         // A running save finishes first: the backend handles commands in order
         self.settings_question = None;
         self.wizard_window = None;
@@ -690,6 +733,192 @@ impl App {
         info!(?answer, "sponsor dialog answered");
         if let Answer::Sponsor(i) = answer {
             open_url(sponsor::OPTIONS[i].url);
+        }
+    }
+
+    /// Start the automatic look for a new release once a day (see
+    /// `updates`).
+    fn check_for_updates_when_due(&mut self) {
+        if !self.update_checking && load_update_state().due(Utc::now().timestamp()) {
+            self.check_for_updates(false);
+        }
+    }
+
+    /// Look for a new release on a thread of its own; answered with
+    /// `UserEvent::UpdateChecked`.
+    fn check_for_updates(&mut self, manual: bool) {
+        if self.update_checking {
+            return;
+        }
+        let proxy = self.proxy.clone();
+        self.update_checking = spawn_async("capycal-update-check", async move {
+            let result = match updater::client() {
+                Ok(client) => updater::check(&client).await,
+                Err(e) => Err(e),
+            };
+            let _ = proxy.send_event(UserEvent::UpdateChecked { manual, result });
+        });
+        self.refresh_updates_info();
+    }
+
+    fn on_update_checked(&mut self, manual: bool, result: Result<Release, String>) {
+        self.update_checking = false;
+        let now = Utc::now().timestamp();
+        let mut state = load_update_state();
+        match &result {
+            Ok(release) => info!(latest = %release.version, "looked for updates"),
+            Err(e) => warn!(error = %e, "cannot look for updates"),
+        }
+        let offer = match &result {
+            // Check Now shows a skipped or postponed version too
+            Ok(release) if manual => updates::newer(release, CURRENT_VERSION),
+            Ok(release) => state.offer(release, CURRENT_VERSION, now),
+            Err(_) => false,
+        };
+        if manual {
+            self.update_note = Some(updates::note(&result, CURRENT_VERSION));
+        } else {
+            // A failed check waits for the next day too
+            state.last_check = Some(now);
+            save_update_state(&state);
+        }
+        self.refresh_updates_info();
+        if let (true, Ok(release)) = (offer, result) {
+            self.offer_update(release, state.installed_by.as_deref());
+        }
+    }
+
+    fn offer_update(&mut self, release: Release, installed_by: Option<&str>) {
+        if let Some((window, _)) = &self.update_window {
+            return window.focus();
+        }
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let proxy = self.proxy.clone();
+        let notify = move |input| {
+            let _ = proxy.send_event(UserEvent::Update(input));
+        };
+        let dialog = UpdateDialog::new(release, CURRENT_VERSION, installed_by);
+        let window = DialogWindow::open(mtm, "arrow.down.circle", None, dialog.view(), notify);
+        self.update_window = Some((window, dialog));
+    }
+
+    fn on_update_input(&mut self, input: PanelInput) {
+        let Some((window, dialog)) = &mut self.update_window else {
+            return;
+        };
+        let reply = match input {
+            PanelInput::Button(i) => dialog.press(i),
+            PanelInput::Closed => dialog.closed(),
+        };
+        match reply {
+            updates::Reply::Close(answer) => {
+                if let Some(answer) = answer {
+                    let mut state = load_update_state();
+                    state.answer(answer, dialog.release(), Utc::now().timestamp());
+                    save_update_state(&state);
+                    info!(?answer, version = %dialog.release().version, "update offer answered");
+                }
+                // Dropping the window closes it without another Closed event
+                self.update_window = None;
+            }
+            updates::Reply::ViewRelease => open_url(&dialog.release().page),
+            updates::Reply::Install => {
+                let bundle = std::env::current_exe()
+                    .ok()
+                    .and_then(|exe| updater::bundle_of(&exe));
+                let busy = self.snapshot.activity.clone();
+                let release = dialog.release().clone();
+                match (bundle, busy) {
+                    (_, Some(activity)) => dialog.failed(&format!(
+                        "Capycal is busy: {activity}. Update once it is done."
+                    )),
+                    (None, None) => dialog.failed(
+                        "Capycal does not run from its app bundle, so it cannot replace itself.",
+                    ),
+                    (Some(bundle), None) => {
+                        let cancel = Arc::new(AtomicBool::new(false));
+                        self.update_cancel = Some(cancel.clone());
+                        let proxy = self.proxy.clone();
+                        let started = spawn_async("capycal-update", async move {
+                            let steps = proxy.clone();
+                            let progress = move |step| {
+                                let _ = steps.send_event(UserEvent::UpdateStep(step));
+                            };
+                            let result = match updater::client() {
+                                Ok(client) => {
+                                    updater::install(&client, &release, &bundle, &cancel, progress)
+                                        .await
+                                }
+                                Err(e) => Err(e),
+                            };
+                            let _ = proxy
+                                .send_event(UserEvent::UpdateInstalled(result.map(|()| bundle)));
+                        });
+                        if !started {
+                            dialog.failed("Cannot start the update.");
+                        }
+                    }
+                }
+                window.show(dialog.view());
+            }
+            updates::Reply::Cancel => {
+                if let Some(cancel) = &self.update_cancel {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+                self.update_window = None;
+            }
+        }
+    }
+
+    fn on_update_installed(&mut self, result: Result<PathBuf, String>) {
+        let cancelled = self
+            .update_cancel
+            .take()
+            .is_some_and(|c| c.load(Ordering::Relaxed));
+        match result {
+            Ok(bundle) => {
+                info!(bundle = %bundle.display(), "updated, starting the new version");
+                match updater::relaunch(&bundle) {
+                    Ok(()) => self.quitting = true,
+                    Err(e) => {
+                        error!(error = %e, "cannot start the new version");
+                        self.update_window = None;
+                        self.show_error(
+                            "Restart",
+                            &format!("Capycal is updated. {e}. Quit Capycal and open it again."),
+                        );
+                    }
+                }
+            }
+            Err(e) if cancelled => info!(error = %e, "update cancelled"),
+            Err(e) => {
+                error!(error = %e, "update failed");
+                if let Some((window, dialog)) = &mut self.update_window {
+                    dialog.failed(&e);
+                    window.show(dialog.view());
+                }
+            }
+        }
+    }
+
+    /// The update check as General shows it.
+    fn updates_info(&self) -> settings_view::UpdatesInfo {
+        let state = load_update_state();
+        settings_view::UpdatesInfo {
+            enabled: state.enabled(),
+            checking: self.update_checking,
+            note: self.update_note.clone(),
+            installed_by: state.installed_by,
+        }
+    }
+
+    fn refresh_updates_info(&mut self) {
+        let info = self.updates_info();
+        if let Some(screen) = &mut self.settings {
+            screen.set_updates(Some(info));
+            self.settings_replies(vec![settings_view::Reply::Show]);
         }
     }
 
@@ -851,6 +1080,7 @@ impl App {
             screen.set_statuses(&self.snapshot.syncs, chrono::Utc::now());
             screen.set_problem(self.snapshot.problem.as_ref());
             screen.set_app_info(autostart::is_enabled(), &self.config_path);
+            screen.set_updates(Some(self.updates_info()));
             if let Some(last) = self.last_selection.take() {
                 screen.restore(last);
             }
@@ -961,6 +1191,12 @@ impl App {
                         self.show_error("Start at Login", &e);
                     }
                 }
+                settings_view::Reply::SetCheckUpdates(on) => {
+                    let mut state = load_update_state();
+                    state.check = Some(on);
+                    save_update_state(&state);
+                }
+                settings_view::Reply::CheckUpdatesNow => self.check_for_updates(true),
                 settings_view::Reply::Purge(sync) => self.purge(sync),
                 settings_view::Reply::PurgeCalendar {
                     calendar,
@@ -1273,6 +1509,80 @@ fn save_sponsor_state(state: &SponsorState) {
     ] {
         defaults.setBool_forKey(set, &NSString::from_str(key));
     }
+}
+
+const CHECK_FOR_UPDATES: &str = "CheckForUpdates";
+const UPDATE_LAST_CHECK: &str = "UpdateLastCheck";
+const UPDATE_REMIND_AFTER: &str = "UpdateRemindAfter";
+const UPDATE_SKIPPED: &str = "UpdateSkipped";
+/// Written by the Homebrew cask: `homebrew`.
+const INSTALLED_BY: &str = "InstalledBy";
+
+/// The update state from the app's user defaults; 0 is a missing time.
+fn load_update_state() -> UpdateState {
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let key = |key: &str| NSString::from_str(key);
+    let time = |name: &str| {
+        let secs = defaults.doubleForKey(&key(name)) as i64;
+        (secs != 0).then_some(secs)
+    };
+    let text = |name: &str| {
+        defaults
+            .stringForKey(&key(name))
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
+    };
+    UpdateState {
+        check: defaults
+            .objectForKey(&key(CHECK_FOR_UPDATES))
+            .map(|_| defaults.boolForKey(&key(CHECK_FOR_UPDATES))),
+        installed_by: text(INSTALLED_BY),
+        last_check: time(UPDATE_LAST_CHECK),
+        remind_after: time(UPDATE_REMIND_AFTER),
+        skipped: text(UPDATE_SKIPPED),
+    }
+}
+
+/// `InstalledBy` belongs to the package manager and is left alone.
+fn save_update_state(state: &UpdateState) {
+    let defaults = NSUserDefaults::standardUserDefaults();
+    if let Some(on) = state.check {
+        defaults.setBool_forKey(on, &NSString::from_str(CHECK_FOR_UPDATES));
+    }
+    for (key, time) in [
+        (UPDATE_LAST_CHECK, state.last_check),
+        (UPDATE_REMIND_AFTER, state.remind_after),
+    ] {
+        defaults.setDouble_forKey(time.unwrap_or(0) as f64, &NSString::from_str(key));
+    }
+    let key = NSString::from_str(UPDATE_SKIPPED);
+    match &state.skipped {
+        Some(version) => {
+            let version = NSString::from_str(version);
+            let value: &AnyObject = &version;
+            // SAFETY: a string is a property list value
+            unsafe { defaults.setObject_forKey(Some(value), &key) };
+        }
+        None => defaults.removeObjectForKey(&key),
+    }
+}
+
+/// Run `job` on a thread of its own with a small tokio runtime, apart from
+/// the syncs. Whether the thread started.
+fn spawn_async(name: &str, job: impl Future<Output = ()> + Send + 'static) -> bool {
+    std::thread::Builder::new()
+        .name(name.to_string())
+        .spawn(move || {
+            match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime.block_on(job),
+                Err(e) => error!(error = %e, "cannot start the async runtime"),
+            }
+        })
+        .inspect_err(|e| error!(error = %e, "cannot start a thread"))
+        .is_ok()
 }
 
 fn open_url(url: &str) {

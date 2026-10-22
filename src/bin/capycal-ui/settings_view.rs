@@ -30,6 +30,9 @@ pub enum FieldId {
     /// The General entry at the top of the sidebar.
     SidebarGeneral,
     StartAtLogin,
+    /// The automatic update check (macOS) and its Check Now.
+    CheckUpdates,
+    CheckUpdatesNow,
     LogLevel,
     OpenConfig,
     RevealConfig,
@@ -475,6 +478,10 @@ pub enum Reply {
     Quit,
     /// Turn starting at login on or off.
     SetStartAtLogin(bool),
+    /// Turn the automatic update check on or off.
+    SetCheckUpdates(bool),
+    /// Look for a new release now.
+    CheckUpdatesNow,
     /// Show the config file in the file manager.
     RevealConfig,
     /// Open the Remove Synced Events dialog for this sync.
@@ -489,6 +496,18 @@ pub enum Reply {
     ShowLog,
     /// Open this page in the browser.
     OpenUrl(&'static str),
+}
+
+/// The update check as General shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdatesInfo {
+    pub enabled: bool,
+    /// A Check Now runs.
+    pub checking: bool,
+    /// The outcome of the last Check Now.
+    pub note: Option<String>,
+    /// The package manager that installed the app.
+    pub installed_by: Option<String>,
 }
 
 /// What the copies of a new sync show, the wizard's last question.
@@ -732,6 +751,8 @@ pub struct SettingsScreen {
     /// The app's own settings: starting at login, the config's path.
     start_at_login: bool,
     config_path: Option<std::path::PathBuf>,
+    /// The update check, shown only when set (macOS).
+    updates: Option<UpdatesInfo>,
     /// How the syncs are doing, as of `now`.
     statuses: Vec<capycal::SyncStatus>,
     now: chrono::DateTime<chrono::Utc>,
@@ -917,6 +938,7 @@ impl SettingsScreen {
             typing: None,
             start_at_login: false,
             config_path: None,
+            updates: None,
             statuses: Vec::new(),
             now: chrono::DateTime::UNIX_EPOCH,
             undo: Vec::new(),
@@ -1049,6 +1071,12 @@ impl SettingsScreen {
     pub fn set_app_info(&mut self, start_at_login: bool, config_path: &std::path::Path) {
         self.start_at_login = start_at_login;
         self.config_path = Some(config_path.to_path_buf());
+    }
+
+    /// What General shows about the update check; `None` hides it.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn set_updates(&mut self, updates: Option<UpdatesInfo>) {
+        self.updates = updates;
     }
 
     /// The entry shown, to show it again when the window opens anew.
@@ -1985,6 +2013,37 @@ impl SettingsScreen {
         ));
         controls.push(Control::GroupEnd);
 
+        if let Some(updates) = &self.updates {
+            controls.push(Control::Group("Updates".to_string()));
+            controls.push(Control::Check {
+                id: FieldId::CheckUpdates,
+                label: "Check for updates automatically".to_string(),
+                on: updates.enabled,
+                hint: None,
+            });
+            let note = match (&updates.note, &updates.installed_by) {
+                _ if updates.checking => "Checking for updates\u{2026}".to_string(),
+                (Some(note), _) => note.clone(),
+                _ if updates.enabled => {
+                    "Capycal looks for a new release on GitHub once a day.".to_string()
+                }
+                (None, Some(by)) => format!(
+                    "Installed with {}, which keeps Capycal up to date.",
+                    crate::updates::manager_name(by)
+                ),
+                (None, None) => {
+                    "Capycal looks for a new release only when you press Check Now.".to_string()
+                }
+            };
+            controls.push(Control::Note(note));
+            controls.push(Control::Buttons(vec![(
+                FieldId::CheckUpdatesNow,
+                "Check Now".to_string(),
+                !updates.checking,
+            )]));
+            controls.push(Control::GroupEnd);
+        }
+
         controls.push(Control::Group("Log".to_string()));
         let current = self.settings.log_level();
         let mut items: Vec<PopupItem> = LOG_LEVELS
@@ -2200,7 +2259,8 @@ impl SettingsScreen {
                         | FieldId::ReloadConfig
                         | FieldId::ShowLog
                         | FieldId::SidebarGeneral
-                ) | SettingsInput::Toggled(FieldId::StartAtLogin, _)
+                        | FieldId::CheckUpdatesNow
+                ) | SettingsInput::Toggled(FieldId::StartAtLogin | FieldId::CheckUpdates, _)
                     | SettingsInput::CloseRequested
             )
         {
@@ -2324,6 +2384,13 @@ impl SettingsScreen {
                 self.start_at_login = on;
                 vec![Reply::SetStartAtLogin(on), Reply::Show]
             }
+            SettingsInput::Toggled(FieldId::CheckUpdates, on) => {
+                if let Some(updates) = &mut self.updates {
+                    updates.enabled = on;
+                }
+                vec![Reply::SetCheckUpdates(on), Reply::Show]
+            }
+            SettingsInput::Pressed(FieldId::CheckUpdatesNow) => vec![Reply::CheckUpdatesNow],
             SettingsInput::Chose(FieldId::LogLevel, index, _) => {
                 match LOG_LEVELS
                     .get(index)
@@ -4466,6 +4533,100 @@ interval = "5m"
         s.update(&Update::SettingsSaved(Ok(())), Some((&config, &editor)));
         assert!(s.current_view().general.selected, "General stays shown");
         assert_eq!(level(&s), Some(3));
+    }
+
+    #[test]
+    fn test_general_shows_updates_only_when_set() {
+        let (mut s, _, path) = screen("updates", CONFIG, false);
+        s.set_app_info(false, &path);
+        press(&mut s, FieldId::SidebarGeneral);
+        let has = |s: &SettingsScreen, id: FieldId| {
+            s.current_view().controls.iter().any(|c| match c {
+                Control::Check { id: i, .. } => *i == id,
+                Control::Buttons(b) => b.iter().any(|(i, ..)| *i == id),
+                _ => false,
+            })
+        };
+        assert!(
+            !has(&s, FieldId::CheckUpdates),
+            "the GTK app has no update check"
+        );
+        s.set_updates(Some(UpdatesInfo {
+            enabled: true,
+            checking: false,
+            note: None,
+            installed_by: None,
+        }));
+        assert!(matches!(
+            find(&s.current_view(), &FieldId::CheckUpdates),
+            Control::Check { on: true, .. }
+        ));
+        assert!(matches!(
+            s.input(SettingsInput::Toggled(FieldId::CheckUpdates, false))[..],
+            [Reply::SetCheckUpdates(false), Reply::Show]
+        ));
+        assert!(matches!(
+            find(&s.current_view(), &FieldId::CheckUpdates),
+            Control::Check { on: false, .. }
+        ));
+        assert!(matches!(
+            s.input(SettingsInput::Pressed(FieldId::CheckUpdatesNow))[..],
+            [Reply::CheckUpdatesNow]
+        ));
+        let note = |s: &SettingsScreen| {
+            let controls = s.current_view().controls;
+            let at = controls.iter().position(
+                |c| matches!(c, Control::Buttons(b) if b[0].0 == FieldId::CheckUpdatesNow),
+            );
+            let Some(Control::Buttons(b)) = at.map(|i| &controls[i]) else {
+                panic!("no Check Now")
+            };
+            let enabled = b[0].2;
+            let Some(Control::Note(note)) = at.map(|i| controls[i - 1].clone()) else {
+                panic!("no note")
+            };
+            (enabled, note)
+        };
+        // Switched off above
+        assert_eq!(
+            note(&s),
+            (
+                true,
+                "Capycal looks for a new release only when you press Check Now.".to_string()
+            )
+        );
+        let off = |installed_by: Option<&str>| UpdatesInfo {
+            enabled: false,
+            checking: false,
+            note: None,
+            installed_by: installed_by.map(String::from),
+        };
+        s.set_updates(Some(off(None)));
+        assert_eq!(
+            note(&s).1,
+            "Capycal looks for a new release only when you press Check Now."
+        );
+        s.set_updates(Some(off(Some("homebrew"))));
+        assert_eq!(
+            note(&s).1,
+            "Installed with Homebrew, which keeps Capycal up to date."
+        );
+        s.set_updates(Some(UpdatesInfo {
+            checking: true,
+            ..off(None)
+        }));
+        assert_eq!(
+            note(&s),
+            (false, "Checking for updates\u{2026}".to_string())
+        );
+        s.set_updates(Some(UpdatesInfo {
+            note: Some("Capycal 0.2.0 is the latest version.".into()),
+            ..off(Some("homebrew"))
+        }));
+        assert_eq!(
+            note(&s),
+            (true, "Capycal 0.2.0 is the latest version.".to_string())
+        );
     }
 
     #[test]

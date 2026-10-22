@@ -54,6 +54,10 @@ mod sync_form;
 mod text_window_macos;
 #[cfg(any(target_os = "macos", test))]
 mod transform_form;
+#[cfg(any(target_os = "macos", test))]
+mod updater;
+#[cfg(any(target_os = "macos", test))]
+mod updates;
 
 #[cfg(target_os = "macos")]
 fn main() -> std::process::ExitCode {

@@ -811,6 +811,9 @@ impl App {
                 } => self.purge_calendar(calendar, name, syncs),
                 settings_view::Reply::ShowLog => self.show_log(),
                 settings_view::Reply::OpenUrl(url) => open_uri(url),
+                // The Linux app is updated by its packages
+                settings_view::Reply::SetCheckUpdates(_)
+                | settings_view::Reply::CheckUpdatesNow => {}
                 settings_view::Reply::RevealConfig => {
                     let file = gtk::gio::File::for_path(&self.config_path);
                     gtk::FileLauncher::new(Some(&file)).open_containing_folder(

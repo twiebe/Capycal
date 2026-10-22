@@ -71,6 +71,7 @@ These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and
 - **Tags** on a list row ("the source", "read-only") are small pills in secondary text, centered on the row.
 - **The window remembers** its size and the entry shown.
 - **A menu bar app with a window behaves like an app**: on macOS it shows in the Dock, in Cmd+Tab and with its own menu bar (app menu with Settings… and Quit, Edit, Window) while any of its windows is open, and leaves the Dock with the last one. Cmd+W closes, Cmd+Q quits (Ctrl on Linux), asking only about unsaved changes.
+- **An offer the app makes by itself can wait**: a window Capycal opens unasked (sponsoring, an update) has a button to ask later and one to stop asking; closing it counts as later. Its main action is the default button, a link to read more keeps the window open.
 - **Ask for permissions in context**: say why before the system asks (Calendar.app access). Before a Keychain prompt (`keychain_notice.rs`), check silently whether one will come and only then explain what Capycal reads, what stays closed and which button keeps the system from asking again.
 
 ## Motion
