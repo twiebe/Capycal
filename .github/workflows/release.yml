@@ -17,7 +17,7 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
-            os: macos-15
+            os: macos-26
           - target: x86_64-unknown-linux-musl
             os: ubuntu-24.04
           - target: aarch64-unknown-linux-musl
@@ -93,7 +93,7 @@ jobs:
 
   app:
     name: macOS app
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
 

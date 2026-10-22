@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # macOS is the only place where the EventKit adapter is compiled for real
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04, macos-26]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
