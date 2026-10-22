@@ -12,8 +12,10 @@
 ```bash
 sudo apt install ./capycal-app_<version>-1_amd64.deb    # Debian, Ubuntu
 sudo dnf install ./capycal-app-<version>-1.x86_64.rpm   # Fedora
-yay -S capycal-app-bin                                  # Arch Linux, from the AUR
+makepkg -si -p capycal-app-bin.PKGBUILD                 # Arch Linux
 ```
+
+On Arch Linux, download `capycal-app-bin.PKGBUILD` from the release first, see [Arch Linux](../installation.md#arch-linux).
 
 Up to 0.1.0 the app was called `capycal-gtk`. The `capycal-app` package replaces it, and the app points an enabled Start at Login to the new name on its first start.
 

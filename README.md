@@ -30,7 +30,7 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 - **Discovery**: `--discover` finds calendars on a CalDAV server (RFC 6764), `--discover-eventkit` lists Calendar.app calendars, both print ready-to-paste config
 - **Operations**: daemon or one-shot (`--once`), config reload on `SIGHUP` or automatically when the file changes, `--full-sync` to compare source and target and repair the difference, `--purge` to remove everything Capycal created, `--status` to see each sync's state
 - **Safe state**: crash-safe JSON state files (write, then rename) that are only a cache: lost or corrupt state is rebuilt from the markers in the target, and periodic full syncs clean up duplicates and events that filters now drop
-- **Linux service**: `.deb`, `.rpm` and AUR packages with man page, shell completions and systemd units; `--install-service` sets up the user service, passwords can come from a password manager or keyring command
+- **Linux service**: `.deb`, `.rpm` and Arch Linux packages with man page, shell completions and systemd units; `--install-service` sets up the user service, passwords can come from a password manager or keyring command
 - **Desktop app (macOS)**: `Capycal.app` lives in the menu bar, runs your syncs in the background and shows their status, a live log and Start at Login. It writes a commented starter config on the first start, lists your Calendar.app calendars for the config and removes a sync's events on request
 - **Desktop app (Linux)**: `capycal-app` does the same from a tray icon with GTK 4 / libadwaita windows, and discovers the calendars of a CalDAV account for the config
 
@@ -41,7 +41,7 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 | macOS desktop app (Apple silicon, macOS 14+) | `capycal-v<version>-macos.dmg`, includes the CLI |
 | macOS CLI (Apple silicon) | `capycal-v<version>-aarch64-apple-darwin.tar.gz` |
 | Linux x86_64 / arm64 (static) | `.deb`, `.rpm`, or `capycal-v<version>-{x86_64,aarch64}-unknown-linux-musl.tar.gz` |
-| Arch Linux | AUR packages `capycal-bin` (CLI) and `capycal-app-bin` (desktop app) |
+| Arch Linux | `capycal-bin.PKGBUILD` (CLI), `capycal-app-bin.PKGBUILD` (desktop app), build with `makepkg -si -p <file>` |
 | Homebrew (macOS, Linux) | `brew install twiebe/capycal/capycal`, app: `brew install --cask twiebe/capycal/capycal-app` |
 | Linux desktop app (GTK 4.14+) | `capycal-app` `.deb` / `.rpm` |
 

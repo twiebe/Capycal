@@ -8,7 +8,7 @@ Prebuilt downloads are on the [releases page](https://github.com/twiebe/capycal/
 | macOS CLI (Apple silicon) | `capycal-v<version>-aarch64-apple-darwin.tar.gz` |
 | Linux x86_64 (static) | `capycal-v<version>-x86_64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_amd64.deb`, `capycal-<version>-1.x86_64.rpm` |
 | Linux arm64 (static) | `capycal-v<version>-aarch64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_arm64.deb`, `capycal-<version>-1.aarch64.rpm` |
-| Arch Linux | AUR packages `capycal-bin` (CLI) and `capycal-app-bin` (desktop app) |
+| Arch Linux | `capycal-bin.PKGBUILD` (CLI), `capycal-app-bin.PKGBUILD` (desktop app), see [Arch Linux](#arch-linux) |
 | Linux desktop app (x86_64, arm64; GTK 4.14+) | `capycal-app_<version>-1_<arch>.deb`, `capycal-app-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
 
 On macOS and Linux, [Homebrew](#homebrew) installs the CLI and the macOS app from the tap `twiebe/capycal`.
@@ -54,7 +54,7 @@ sudo apt install ./capycal_<version>-1_amd64.deb     # Debian, Ubuntu
 sudo dnf install ./capycal-<version>-1.x86_64.rpm    # Fedora, RHEL, openSUSE (zypper)
 ```
 
-On Arch Linux, install `capycal-bin` from the AUR, or build `capycal-bin.PKGBUILD` from the release with `makepkg -si -p capycal-bin.PKGBUILD`.
+On Arch Linux, see [Arch Linux](#arch-linux).
 
 The packages install `/usr/bin/capycal`, the man page (`man capycal`), completions for bash, zsh and fish, and two systemd units that are not enabled: the user service `capycal.service` (runs your default config, see [User service](cli/server.md#user-service)) and the system service `capycal.service` (see [System service](cli/server.md#system-service)). Then:
 
@@ -64,6 +64,17 @@ capycal --discover https://caldav.example.com/
 capycal --once                  # try it
 systemctl --user enable --now capycal
 ```
+
+## Arch Linux
+
+Capycal is not in the AUR yet: the AUR does not accept new accounts at the moment. Until it does, every release carries the PKGBUILDs the AUR packages would use. Download the one you need from the [releases page](https://github.com/twiebe/capycal/releases) and build it with `makepkg`:
+
+```bash
+makepkg -si -p capycal-bin.PKGBUILD        # CLI
+makepkg -si -p capycal-app-bin.PKGBUILD    # desktop app
+```
+
+The PKGBUILD downloads the release files and checks them against their checksums, and pacman installs the package like any other: `pacman -R capycal-bin` removes it. Updates do not come with `pacman -Syu`: build the PKGBUILD of the new release the same way.
 
 ## CLI binaries
 
