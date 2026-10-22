@@ -39,7 +39,7 @@ Details: [Calendars](../concepts/calendars.md), [Credentials](../concepts/calend
 
 ## `[syncs.<name>]`
 
-Each sync is a table named by its key, for example `[syncs.work-to-home]`. The name is non-empty, has no `/` or `\` and no leading `.`. Names with spaces, dots or other characters outside `A-Z a-z 0-9 _ -` need quotes: `[syncs."work to home"]`. Two syncs with the same name are a TOML error ("duplicate key"). Syncs run, log and show up in the menu bar app in file order.
+Each sync is a table named by its key, for example `[syncs.work-to-home]`. The name is non-empty, has no `/` or `\` and no leading `.`. Names with spaces, dots or other characters outside `A-Z a-z 0-9 _ -` need quotes: `[syncs."work to home"]`. Two syncs with the same name are a TOML error ("duplicate key"). Syncs run, log and show up in the desktop app in file order.
 
 | Option | Type | Default | Description |
 |---|---|---|---|

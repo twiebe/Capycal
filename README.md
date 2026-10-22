@@ -31,14 +31,14 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 - **Operations**: daemon or one-shot (`--once`), config reload on `SIGHUP` or automatically when the file changes, `--full-sync` to compare source and target and repair the difference, `--purge` to remove everything Capycal created, `--status` to see each sync's state
 - **Safe state**: crash-safe JSON state files (write, then rename) that are only a cache: lost or corrupt state is rebuilt from the markers in the target, and periodic full syncs clean up duplicates and events that filters now drop
 - **Linux service**: `.deb`, `.rpm` and AUR packages with man page, shell completions and systemd units; `--install-service` sets up the user service, passwords can come from a password manager or keyring command
-- **Menu bar app (macOS)**: `Capycal.app` runs your syncs in the background and shows their status, a live log and Start at Login. It writes a commented starter config on the first start, lists your Calendar.app calendars for the config and removes a sync's events on request
-- **Tray app (Linux)**: `capycal-gtk` does the same with a StatusNotifierItem tray icon and GTK 4 / libadwaita windows, and discovers the calendars of a CalDAV account for the config
+- **Desktop app (macOS)**: `Capycal.app` lives in the menu bar, runs your syncs in the background and shows their status, a live log and Start at Login. It writes a commented starter config on the first start, lists your Calendar.app calendars for the config and removes a sync's events on request
+- **Desktop app (Linux)**: `capycal-gtk` does the same from a tray icon with GTK 4 / libadwaita windows, and discovers the calendars of a CalDAV account for the config
 
 ## Install
 
 | Platform | Download from the [releases page](https://github.com/twiebe/capycal/releases) |
 |---|---|
-| macOS menu bar app (Apple silicon, macOS 14+) | `capycal-v<version>-macos.dmg`, includes the CLI |
+| macOS desktop app (Apple silicon, macOS 14+) | `capycal-v<version>-macos.dmg`, includes the CLI |
 | macOS CLI (Apple silicon) | `capycal-v<version>-aarch64-apple-darwin.tar.gz` |
 | Linux x86_64 / arm64 (static) | `.deb`, `.rpm`, or `capycal-v<version>-{x86_64,aarch64}-unknown-linux-musl.tar.gz` |
 | Arch Linux | AUR package `capycal-bin` |

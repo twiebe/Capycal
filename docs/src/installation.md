@@ -4,7 +4,7 @@ Prebuilt downloads are on the [releases page](https://github.com/twiebe/capycal/
 
 | Platform | File |
 |---|---|
-| macOS menu bar app (Apple silicon, macOS 14+) | `capycal-v<version>-macos.dmg` (includes the CLI) |
+| macOS desktop app (Apple silicon, macOS 14+) | `capycal-v<version>-macos.dmg` (includes the CLI) |
 | macOS CLI (Apple silicon) | `capycal-v<version>-aarch64-apple-darwin.tar.gz` |
 | Linux x86_64 (static) | `capycal-v<version>-x86_64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_amd64.deb`, `capycal-<version>-1.x86_64.rpm` |
 | Linux arm64 (static) | `capycal-v<version>-aarch64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_arm64.deb`, `capycal-<version>-1.aarch64.rpm` |
@@ -23,7 +23,7 @@ shasum -a 256 -c capycal-v<version>-<target>.tar.gz.sha256
 
 ```bash
 brew install twiebe/capycal/capycal              # CLI (macOS on Apple silicon, Linux)
-brew install --cask twiebe/capycal/capycal-app   # menu bar app (macOS)
+brew install --cask twiebe/capycal/capycal-app   # desktop app (macOS)
 ```
 
 The formula installs `capycal` with the man page and shell completions; `brew services start capycal` runs it in the background with your default config. The cask installs `Capycal.app` without linking its bundled CLI, so both can be installed side by side. The app is not notarized either: before its first start, remove the quarantine flag as described under [macOS app](#macos-app).
@@ -99,7 +99,7 @@ Requires a recent stable Rust toolchain (edition 2024).
 cargo install --git https://github.com/twiebe/capycal
 ```
 
-EventKit support is compiled in automatically on macOS. The menu bar app is behind the `ui` feature; see [Building and testing](development/building.md) for building `Capycal.app`.
+EventKit support is compiled in automatically on macOS. The macOS desktop app is behind the `ui` feature; see [Building and testing](development/building.md) for building `Capycal.app`.
 
 ## Docker
 

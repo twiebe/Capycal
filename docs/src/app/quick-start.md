@@ -1,6 +1,6 @@
 # Quick start: desktop app
 
-The menu bar app runs the syncs of one config file in the background. This example copies a work calendar (for example an Exchange account added to Calendar.app) as blockers into a calendar of your iCloud account.
+The desktop app runs the syncs of one config file in the background. This example copies a work calendar (for example an Exchange account added to Calendar.app) as blockers into a calendar of your iCloud account.
 
 ## 1. Prepare the calendars
 
