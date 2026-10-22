@@ -113,6 +113,7 @@ notices: ## Regenerate THIRD-PARTY-NOTICES.txt after a dependency change (needs 
 
 check-notices: ## Fail if THIRD-PARTY-NOTICES.txt is out of date or a license is not accepted
 	cargo fetch --locked
+	mkdir -p $(CARGO_TARGET_DIR)
 	cargo about generate --all-features --frozen about.hbs -o $(CARGO_TARGET_DIR)/notices.txt
 	cmp -s THIRD-PARTY-NOTICES.txt $(CARGO_TARGET_DIR)/notices.txt \
 		|| { echo "THIRD-PARTY-NOTICES.txt is out of date: run make notices"; exit 1; }

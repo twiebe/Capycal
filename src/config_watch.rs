@@ -128,6 +128,8 @@ mod tests {
     async fn test_other_files_are_ignored() {
         let (dir, path) = setup("other");
         let (_watcher, mut rx) = ConfigWatcher::new(&path).unwrap();
+        // FSEvents may still report the write of `setup` after the start
+        let _ = timeout(QUIET, rx.recv()).await;
         std::fs::write(dir.join("other.toml"), "x").unwrap();
         std::fs::create_dir(dir.join("sub")).unwrap();
         // Reading the config, as a reload does, is not a change
