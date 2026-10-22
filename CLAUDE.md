@@ -99,7 +99,8 @@ Moving incrementally toward ports & adapters (no crate split, generics instead o
 - Linux desktop app: `packaging/linux/build-app-packages.sh` makes the `capycal-app` .deb and .rpm with the desktop entry and icons
 - AUR: `packaging/linux/aur/make-pkgbuild.sh` fills the templates of `capycal-bin` (musl tarballs) and `capycal-app-bin` (desktop app `.deb`) from the release checksums; `publish.sh` pushes them with `.SRCINFO` when `AUR_SSH_KEY` is set
 - Homebrew: `packaging/homebrew/make-homebrew.sh` fills the formula `capycal` and cask `capycal-app` templates; the release job pushes them to the tap `twiebe/homebrew-capycal` when `HOMEBREW_TAP_TOKEN` is set
-- Services: `contrib/` (systemd system and user units, launchd LaunchAgent); `Dockerfile` / `docker-compose.yml` run the CLI in a container, `docker-compose.dev.yml` adds Radicale for development
+- Services: `contrib/` (systemd system and user units, launchd LaunchAgent, `docker/compose.yml` for the published image); `Dockerfile` / `docker-compose.yml` build and run the CLI from source in a container, `docker-compose.dev.yml` adds Radicale for development
+- Container image: the release job `image` puts the musl binaries into `packaging/docker/Dockerfile` (distroless static, nonroot, `XDG_CONFIG_HOME=/etc` so the default config is `/etc/capycal/capycal.toml`) and pushes `ghcr.io/twiebe/capycal` for linux/amd64 and linux/arm64
 - macOS: `packaging/macos/` (`Info.plist` with `@VERSION@` placeholders, `build-app.sh`, `build-dmg.sh`, app icon in `icon/`: `make-icon.py` generates the checked-in `capycal.svg`, `AppIcon.iconset/`, the book favicons in `docs/theme/` and the tray icons of both apps (GTK `capycal-tray-*-symbolic.svg`, macOS template PDFs `assets/tray*.pdf`; the app adds the red dot of the error icon), `build-app.sh` runs `iconutil` and signs the bundle ad hoc)
 
 ## Testing

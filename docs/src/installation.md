@@ -10,6 +10,7 @@ Prebuilt downloads are on the [releases page](https://github.com/twiebe/capycal/
 | Linux arm64 (static) | `capycal-v<version>-aarch64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_arm64.deb`, `capycal-<version>-1.aarch64.rpm` |
 | Arch Linux | `capycal-bin.PKGBUILD` (CLI), `capycal-app-bin.PKGBUILD` (desktop app), see [Arch Linux](#arch-linux) |
 | Linux desktop app (x86_64, arm64; GTK 4.14+) | `capycal-app_<version>-1_<arch>.deb`, `capycal-app-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
+| Container (linux/amd64, linux/arm64) | `ghcr.io/twiebe/capycal`, see [Docker](#docker) |
 
 On macOS and Linux, [Homebrew](#homebrew) installs the CLI and the macOS app from the tap `twiebe/capycal`.
 
@@ -115,13 +116,14 @@ EventKit support is compiled in automatically on macOS. The macOS desktop app is
 
 ## Docker
 
-The repository contains a `Dockerfile` and a `docker-compose.yml` that build the CLI from source:
+Each release is published as the image `ghcr.io/twiebe/capycal` (tags `<version>`, `<major>.<minor>` and `latest`). [`contrib/docker/compose.yml`](https://github.com/twiebe/capycal/blob/main/contrib/docker/compose.yml) runs it as a daemon:
 
 ```bash
-git clone https://github.com/twiebe/capycal && cd capycal
-cp capycal.example.toml capycal.toml   # edit it
-cp .env.example .env                 # put your passwords here
+mkdir capycal && cd capycal
+curl -LO https://raw.githubusercontent.com/twiebe/capycal/main/contrib/docker/compose.yml
+curl -L -o capycal.toml https://raw.githubusercontent.com/twiebe/capycal/main/capycal.example.toml
+# edit capycal.toml; put passwords into .env
 docker compose up -d
 ```
 
-See [Running on a server](cli/server.md#docker) for details.
+See [Running on a server](cli/server.md#docker) for details, and for building the image from source.

@@ -1,0 +1,22 @@
+# Runs the capycal daemon from the published image. Put it next to your
+# capycal.toml and, for passwords referenced as { env = "..." }, a .env file:
+#   docker compose up -d
+services:
+  capycal:
+    image: ghcr.io/twiebe/capycal:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # The zone of the time conditions in transforms
+      TZ: UTC
+    volumes:
+      - ./capycal.toml:/etc/capycal/capycal.toml:ro
+      - capycal-state:/var/lib/capycal
+    # Reload the config without a restart: docker compose kill -s HUP capycal
+    # A stop waits up to 30 s for a running sync
+    stop_grace_period: 35s
+
+volumes:
+  capycal-state:

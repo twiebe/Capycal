@@ -53,26 +53,43 @@ sudo systemctl reload capycal       # re-read the config (SIGHUP)
 
 ## Docker
 
-The repository's `Dockerfile` builds the CLI from source into a Debian slim image that runs as an unprivileged user. `docker-compose.yml` mounts the config read-only and keeps the state in a volume:
+Each release is published as the multi-architecture image `ghcr.io/twiebe/capycal` (linux/amd64, linux/arm64), tagged with the version (`0.2.0`), the minor version (`0.2`) and `latest`. It holds the static Linux binary on a [distroless](https://github.com/GoogleContainerTools/distroless) base (CA certificates and time zones, no shell) and runs as the unprivileged user `nonroot` (uid 65532). [`contrib/docker/compose.yml`](https://github.com/twiebe/capycal/blob/main/contrib/docker/compose.yml) runs the daemon with the config read-only and the state in a volume:
+
+```bash
+mkdir capycal && cd capycal
+curl -LO https://raw.githubusercontent.com/twiebe/capycal/main/contrib/docker/compose.yml
+curl -L -o capycal.toml https://raw.githubusercontent.com/twiebe/capycal/main/capycal.example.toml
+# edit capycal.toml; put passwords into .env
+docker compose run --rm capycal --validate
+docker compose up -d
+```
+
+- The config is `/etc/capycal/capycal.toml`, the default path in the image, so commands such as `--validate`, `--status` or `--once` need no `--config`.
+- The image sets `CAPYCAL_STATE_DIR=/var/lib/capycal`, where the compose file mounts the state volume, so the state survives a recreated container. Leave `state_dir` unset in `capycal.toml`, or set it to a path inside that volume.
+- Put the passwords into `.env` next to `compose.yml` and reference them as `password = { env = "..." }`. `RUST_LOG` in `.env` overrides `log_level`, also on reload.
+- Time conditions of transforms use the zone in `TZ`, `UTC` in the compose file. Set it to yours, such as `Europe/Berlin`.
+- Pin a version (`ghcr.io/twiebe/capycal:0.2`) instead of `latest` to update only when you change the tag; `docker compose pull && docker compose up -d` updates.
+
+```bash
+docker compose logs -f capycal          # logs
+docker compose kill -s HUP capycal      # reload the config
+docker compose exec capycal capycal --status
+```
+
+The image runs the CLI only. Calendar.app (EventKit) is not available in a container, so sync CalDAV accounts and calendar feeds there.
+
+### From source
+
+The repository's `Dockerfile` builds the CLI from source into a Debian slim image, and the `docker-compose.yml` at its top runs that instead of the published image, with the config in `capycal.toml` and the passwords in `.env` (from `.env.example`) in the checkout:
 
 ```bash
 git clone https://github.com/twiebe/capycal && cd capycal
 cp capycal.example.toml capycal.toml
 cp .env.example .env
-docker compose up -d
+docker compose up -d --build
 ```
 
-- The image sets `CAPYCAL_STATE_DIR=/var/lib/capycal`, where the compose file mounts the state volume, so the state survives a recreated container. Leave `state_dir` unset in `capycal.toml`, or set it to a path inside that volume.
-- Put the passwords into `.env` and reference them as `password = { env = "..." }`. `RUST_LOG` in `.env` overrides `log_level`, also on reload.
-- Time conditions of transforms use the container's timezone, UTC by default. Add `- /etc/localtime:/etc/localtime:ro` to the volumes to use the host's.
-
-```bash
-docker compose logs -f capycal          # logs
-docker compose kill -s HUP capycal      # reload the config
-docker compose exec capycal capycal --validate --config /etc/capycal/capycal.toml
-```
-
-The Makefile has shortcuts: `make up`, `make down`, `make logs`, `make reload`.
+The Makefile has shortcuts for it: `make up`, `make down`, `make logs`, `make reload`.
 
 ## launchd (headless macOS)
 

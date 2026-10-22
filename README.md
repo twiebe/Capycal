@@ -47,7 +47,7 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 
 The macOS app and binary are not notarized: right-click the app and choose Open, or run `xattr -dr com.apple.quarantine /Applications/Capycal.app`.
 
-From source: `cargo install --git https://github.com/twiebe/capycal`. A `Dockerfile` and `docker-compose.yml` are included.
+Docker: `ghcr.io/twiebe/capycal`, with a ready [`compose.yml`](contrib/docker/compose.yml). From source: `cargo install --git https://github.com/twiebe/capycal`.
 
 Details, including the static Linux binaries and Docker: [Installation](https://capycal.app/docs/installation.html).
 
