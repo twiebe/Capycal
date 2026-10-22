@@ -1981,14 +1981,15 @@ fields = ["DTSTART"]
             Update::AccountTested(Err("Enter the password".into()))
         );
 
-        backend.tx.send(Command::ListCalendarApp).unwrap();
-        let listed = backend
-            .next(|u| matches!(u, Update::CalendarAppCalendars(_)))
-            .await;
+        // On macOS this asks for calendar access, which nobody answers in CI
         #[cfg(not(target_os = "macos"))]
-        assert!(matches!(listed, Update::CalendarAppCalendars(Err(_))));
-        #[cfg(target_os = "macos")]
-        let _ = listed;
+        {
+            backend.tx.send(Command::ListCalendarApp).unwrap();
+            let listed = backend
+                .next(|u| matches!(u, Update::CalendarAppCalendars(_)))
+                .await;
+            assert!(matches!(listed, Update::CalendarAppCalendars(Err(_))));
+        }
         backend.stop().await;
         let _ = std::fs::remove_dir_all(&dir);
     }
