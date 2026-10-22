@@ -62,12 +62,29 @@ pub fn set_enabled(enabled: bool, config: &Path) -> Result<(), String> {
             _ => Ok(()),
         };
     }
-    let exe = std::env::current_exe().map_err(|e| format!("cannot find capycal-gtk: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("cannot find capycal-app: {e}"))?;
     let config = std::fs::canonicalize(config).unwrap_or_else(|_| config.to_path_buf());
     let dir = path.parent().unwrap_or(&path);
     std::fs::create_dir_all(dir)
         .and_then(|()| std::fs::write(&path, desktop_entry(&exe, &config)))
         .map_err(|e| format!("cannot write {}: {e}", path.display()))
+}
+
+/// Point an existing autostart entry at this binary when it starts another
+/// one, e.g. `capycal-gtk`, as the app was called up to 0.1.0.
+pub fn repair(config: &Path) -> Result<(), String> {
+    let Some(entry) = entry_path().and_then(|path| std::fs::read_to_string(path).ok()) else {
+        return Ok(());
+    };
+    let exe = std::env::current_exe().map_err(|e| format!("cannot find capycal-app: {e}"))?;
+    if starts(&entry, &exe) {
+        return Ok(());
+    }
+    set_enabled(true, config)
+}
+
+fn starts(entry: &str, exe: &Path) -> bool {
+    entry.contains(&format!("\nExec={} ", exec_arg(&exe.to_string_lossy())))
 }
 
 #[cfg(test)]
@@ -77,15 +94,22 @@ mod tests {
     #[test]
     fn test_desktop_entry_quotes_its_arguments() {
         let entry = desktop_entry(
-            Path::new("/usr/bin/capycal-gtk"),
+            Path::new("/usr/bin/capycal-app"),
             Path::new("/home/a/my \"cal\"/100%.toml"),
         );
         assert!(entry.starts_with("[Desktop Entry]\nType=Application\n"));
         assert!(
             entry.contains(
-                "Exec=\"/usr/bin/capycal-gtk\" --config \"/home/a/my \\\\\"cal\\\\\"/100%%.toml\"\n"
+                "Exec=\"/usr/bin/capycal-app\" --config \"/home/a/my \\\\\"cal\\\\\"/100%%.toml\"\n"
             ),
             "{entry}"
         );
+    }
+
+    #[test]
+    fn test_an_entry_of_another_binary_is_repaired() {
+        let entry = desktop_entry(Path::new("/usr/bin/capycal-gtk"), Path::new("/c.toml"));
+        assert!(starts(&entry, Path::new("/usr/bin/capycal-gtk")));
+        assert!(!starts(&entry, Path::new("/usr/bin/capycal-app")));
     }
 }

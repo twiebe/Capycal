@@ -1,6 +1,6 @@
 # Architecture
 
-Capycal follows a pragmatic ports-and-adapters layout. The crate is a library (`src/lib.rs`) plus three binaries: the `capycal` CLI (`src/main.rs`), the `capycal-ui` menu bar app for macOS (`src/bin/capycal-ui/`, feature `ui`) and the `capycal-gtk` tray app for Linux (`src/bin/capycal-gtk/`, feature `gtk`), which reuse the same sync engine. The domain core (iCal processing, sync loop, etag diff, UID mapping) knows nothing about CalDAV, EventKit, the file system or the config file format. Adapters plug into small traits (ports).
+Capycal follows a pragmatic ports-and-adapters layout. The crate is a library (`src/lib.rs`) plus three binaries: the `capycal` CLI (`src/main.rs`), the `capycal-ui` menu bar app for macOS (`src/bin/capycal-ui/`, feature `ui`) and the `capycal-app` tray app for Linux (`src/bin/capycal-app/`, feature `gtk`), which reuse the same sync engine. The domain core (iCal processing, sync loop, etag diff, UID mapping) knows nothing about CalDAV, EventKit, the file system or the config file format. Adapters plug into small traits (ports).
 
 ## Dependency rule
 
@@ -38,7 +38,7 @@ src/
     sponsor.rs         Ways to sponsor (OPTIONS, logos in assets/), when to ask, its dialog and answers
     logview.rs         Log view model (filter, follow, trimming, line colors), export
     autostart.rs       Start at Login: SMAppService, LaunchAgent fallback
-  bin/capycal-gtk/      The Linux tray app (feature `gtk`), sharing the models above by #[path]
+  bin/capycal-app/      The Linux tray app (feature `gtk`), sharing the models above by #[path]
     app.rs             GTK glue: application, backend thread, actions, Problems, purge and sponsor dialogs
     tray.rs            StatusNotifierItem tray via ksni (Linux only)
     tray_icon.rs       Tray icon pixels: badge and fade per state, ARGB
@@ -223,7 +223,7 @@ Both apps share `dialog::layout` (margins, dialog width, text and log window siz
 
 ## Linux desktop app
 
-`capycal-gtk` (feature `gtk`, binary in `src/bin/capycal-gtk/`) is the same driving adapter with GTK 4 and libadwaita windows. It includes the display-free modules of `capycal-ui` with `#[path]` (`args`, `backend`, `dialog`, `logview`, `menu`, `problems`, `purge`, `sponsor`), so both apps share the menu model, icon state, Problems text, log view model and the dialog models; each uses only part of them, hence `allow(dead_code)` on those includes.
+`capycal-app` (feature `gtk`, binary in `src/bin/capycal-app/`) is the same driving adapter with GTK 4 and libadwaita windows. It includes the display-free modules of `capycal-ui` with `#[path]` (`args`, `backend`, `dialog`, `logview`, `menu`, `problems`, `purge`, `sponsor`), so both apps share the menu model, icon state, Problems text, log view model and the dialog models; each uses only part of them, hence `allow(dead_code)` on those includes.
 
 ```
 main thread (GLib main loop)                 "capycal-sync" thread (tokio)       ksni thread

@@ -1,6 +1,6 @@
 # UI and UX guidelines
 
-These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and the Linux app (`capycal-gtk`). Every change to a window follows them; a change that needs a new pattern adds it here first. `/ui-review` checks a change against this page, and the tests in `settings_view::tests::ui_rules` catch the rules a machine can check.
+These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and the Linux app (`capycal-app`). Every change to a window follows them; a change that needs a new pattern adds it here first. `/ui-review` checks a change against this page, and the tests in `settings_view::tests::ui_rules` catch the rules a machine can check.
 
 ## Principles
 

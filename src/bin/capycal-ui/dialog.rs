@@ -17,7 +17,7 @@ pub const QUIPS: [&str; 9] = [
 ];
 
 /// The description in About: what capycal is, and a tagline below.
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use it
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn about_description() -> String {
     format!("Calendar sync.\n{}", quip())
@@ -69,7 +69,7 @@ fn random() -> u64 {
 
 /// The links of the About window in the order of their buttons: title, URL
 /// and the sponsor option it belongs to (for its logo).
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use it
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn about_links() -> Vec<(&'static str, String, Option<&'static SponsorOption>)> {
     let repository = env!("CARGO_PKG_REPOSITORY");
@@ -86,12 +86,12 @@ pub fn about_links() -> Vec<(&'static str, String, Option<&'static SponsorOption
 }
 
 /// The developer below the app name in About.
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use it
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const ABOUT_DEVELOPER: &str = "Thomas Wiebe";
 
 /// The license line at the bottom of About.
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use it
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const ABOUT_LICENSE: &str = "Copyright 2026 Thomas Wiebe\nGNU GPL v3";
 
@@ -101,7 +101,7 @@ pub const ABOUT_LICENSE: &str = "Copyright 2026 Thomas Wiebe\nGNU GPL v3";
 pub const ABOUT_ACKNOWLEDGEMENTS: usize = 301;
 
 /// Title and header of the Acknowledgements window.
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use them
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use them
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const ACKNOWLEDGEMENTS: (&str, &str) = (
     "Acknowledgements",
@@ -133,7 +133,7 @@ pub const FIRST_LINK: usize = 100;
 pub const FIRST_CHOICE: usize = 200;
 
 /// A change in `View::entry` reports this as button.
-// The Linux build of capycal-ui is a stub; capycal-gtk and macOS use it
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const TYPED: usize = 400;
 

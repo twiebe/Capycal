@@ -6835,7 +6835,7 @@ url = "https://x/b/"
         #[test]
         fn test_renderers_keep_the_palette() {
             let mac = include_str!("settings_window_macos.rs");
-            let gtk = include_str!("../capycal-gtk/settings_window.rs");
+            let gtk = include_str!("../capycal-app/settings_window.rs");
             for (renderer, source, banned) in [
                 ("macOS", mac, &["systemRedColor"][..]),
                 (

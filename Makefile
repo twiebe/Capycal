@@ -42,15 +42,15 @@ run-app: app ## Build Capycal.app and open it (macOS)
 # Needs the GTK 4 and libadwaita development files. On macOS (Homebrew gtk4
 # and libadwaita) it builds without the tray
 build-gtk: ## Build the Linux desktop app (feature gtk)
-	cargo build --features gtk --bin capycal-gtk
+	cargo build --features gtk --bin capycal-app
 
 # Homebrew's GTK needs its data dirs for GSettings schemas (file dialogs)
 run-gtk: ## Run the Linux desktop app
-	cargo build --features gtk --bin capycal-gtk
+	cargo build --features gtk --bin capycal-app
 ifeq ($(UNAME_S),Darwin)
-	XDG_DATA_DIRS="$$(brew --prefix)/share" $(CARGO_TARGET_DIR)/debug/capycal-gtk
+	XDG_DATA_DIRS="$$(brew --prefix)/share" $(CARGO_TARGET_DIR)/debug/capycal-app
 else
-	$(CARGO_TARGET_DIR)/debug/capycal-gtk
+	$(CARGO_TARGET_DIR)/debug/capycal-app
 endif
 
 ##@ Tests and checks (lint, test and test-ui check what CI checks without GTK)
@@ -62,7 +62,7 @@ test-ui: ## Tests of the menu bar app
 	cargo test --locked --features ui --bin capycal-ui
 
 test-gtk: ## Tests of the Linux desktop app
-	cargo test --locked --features gtk --bin capycal-gtk
+	cargo test --locked --features gtk --bin capycal-app
 
 test-caldav: ## End-to-end tests against a throwaway Radicale server (needs python3, curl)
 	scripts/test-caldav.sh
@@ -105,7 +105,7 @@ clippy-ui: ## Clippy with the menu bar app
 	cargo clippy --locked --all-targets --features ui -- -D warnings
 
 clippy-gtk: ## Clippy with the Linux desktop app
-	cargo clippy --locked --features gtk --bin capycal-gtk --tests -- -D warnings
+	cargo clippy --locked --features gtk --bin capycal-app --tests -- -D warnings
 
 notices: ## Regenerate THIRD-PARTY-NOTICES.txt after a dependency change (needs cargo-about)
 	cargo fetch --locked

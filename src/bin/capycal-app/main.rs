@@ -1,4 +1,4 @@
-//! capycal-gtk: the desktop app for Linux. A tray icon (StatusNotifierItem)
+//! capycal-app: the desktop app for Linux. A tray icon (StatusNotifierItem)
 //! runs the syncs of one config; its windows are GTK 4 and libadwaita.
 //!
 //! The models are shared with the macOS app in `src/bin/capycal-ui/`. The

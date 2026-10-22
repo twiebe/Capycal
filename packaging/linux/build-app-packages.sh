@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Package the Linux desktop app built for <target> (cargo build --release
-# --features gtk --bin capycal-gtk, a glibc target): .deb and .rpm named
-# capycal-gtk with the desktop entry and the icons. Needs cargo-deb and
+# --features gtk --bin capycal-app, a glibc target): .deb and .rpm named
+# capycal-app with the desktop entry and the icons. Needs cargo-deb and
 # cargo-generate-rpm.
-# Usage: packaging/linux/build-gtk-packages.sh <target>
+# Usage: packaging/linux/build-app-packages.sh <target>
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 target=$1
 dist="$root/dist"
 # Cargo.toml's gtk variants take the icons from here
-stage="$dist/pkg-gtk"
+stage="$dist/pkg-app"
 
 rm -rf "$stage"
 mkdir -p "$stage"
@@ -23,7 +23,7 @@ done
 (cd "$root" && cargo generate-rpm --variant gtk --target "$target" --output "$dist/")
 
 cd "$dist"
-for file in capycal-gtk_*.deb capycal-gtk-*.rpm; do
+for file in capycal-app_*.deb capycal-app-*.rpm; do
     shasum -a 256 "$file" >"$file.sha256"
 done
-echo "packaged capycal-gtk for $target"
+echo "packaged capycal-app for $target"

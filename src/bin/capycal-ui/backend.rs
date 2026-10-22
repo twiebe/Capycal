@@ -923,7 +923,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
     }
 }
 
-/// The other desktop app (capycal-ui or capycal-gtk) that already runs the
+/// The other desktop app (capycal-ui or capycal-app) that already runs the
 /// config at `path`, if any. A second app would only report the lock; the
 /// CLI holding it is a state the app shows instead.
 /// The accounts of the enabled syncs whose password is in the Keychain, by

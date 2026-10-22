@@ -9,6 +9,7 @@ url="https://github.com/twiebe/capycal"
 license=('GPL-3.0-only')
 provides=('capycal')
 conflicts=('capycal')
+options=('!debug')
 source_x86_64=("https://github.com/twiebe/capycal/releases/download/v${pkgver}/capycal-v${pkgver}-x86_64-unknown-linux-musl.tar.gz")
 source_aarch64=("https://github.com/twiebe/capycal/releases/download/v${pkgver}/capycal-v${pkgver}-aarch64-unknown-linux-musl.tar.gz")
 sha256sums_x86_64=('@SHA256_X86_64@')

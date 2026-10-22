@@ -172,10 +172,10 @@ jobs:
           key: gtk-${{ matrix.target }}
 
       - name: Test
-        run: cargo test --locked --features gtk --bin capycal-gtk
+        run: cargo test --locked --features gtk --bin capycal-app
 
       - name: Build
-        run: cargo build --release --locked --features gtk --bin capycal-gtk --target ${{ matrix.target }}
+        run: cargo build --release --locked --features gtk --bin capycal-app --target ${{ matrix.target }}
 
       - name: Install packaging tools
         uses: taiki-e/install-action@v2
@@ -183,11 +183,11 @@ jobs:
           tool: cargo-deb,cargo-generate-rpm
 
       - name: Package
-        run: packaging/linux/build-gtk-packages.sh ${{ matrix.target }}
+        run: packaging/linux/build-app-packages.sh ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v7
         with:
-          name: capycal-gtk-${{ matrix.target }}
+          name: capycal-app-${{ matrix.target }}
           path: |
             dist/*.deb
             dist/*.rpm
@@ -219,14 +219,17 @@ jobs:
       # Fine-grained token with write access to twiebe/homebrew-capycal; without
       # it the formula and cask are only attached to the release
       HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      # Private SSH key of the AUR account that maintains capycal-bin and
+      # capycal-app-bin; without it the PKGBUILDs are only attached to the release
+      AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
-      - name: Write the AUR PKGBUILD
-        run: packaging/linux/aur/make-pkgbuild.sh dist dist/PKGBUILD
+      - name: Write the AUR PKGBUILDs
+        run: packaging/linux/aur/make-pkgbuild.sh dist dist
       - name: Write the Homebrew formula and cask
         run: packaging/homebrew/make-homebrew.sh dist dist
       - name: Publish GitHub release
@@ -251,3 +254,6 @@ jobs:
           git add Formula Casks
           git commit -m "capycal $GITHUB_REF_NAME"
           git push
+      - name: Update the AUR packages
+        if: env.AUR_SSH_KEY != ''
+        run: packaging/linux/aur/publish.sh dist

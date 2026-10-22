@@ -33,14 +33,14 @@ struct Holder {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LockHolder {
     pub pid: String,
-    /// File name of its executable, e.g. `capycal` or `capycal-gtk`.
+    /// File name of its executable, e.g. `capycal` or `capycal-app`.
     pub program: String,
 }
 
 impl LockHolder {
     /// The holder is one of the desktop apps, not the CLI.
     pub fn is_desktop_app(&self) -> bool {
-        ["capycal-ui", "capycal-gtk"].contains(&self.program.as_str())
+        ["capycal-ui", "capycal-app"].contains(&self.program.as_str())
     }
 }
 

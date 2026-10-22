@@ -66,7 +66,7 @@ The app is not notarized. Right-click `Capycal.app` in Finder and choose **Open*
 
 ### Linux desktop app
 
-The Linux app is `capycal-gtk` (see [Desktop app (Linux)](app/linux.md)); `capycal-ui` is the macOS app and only prints a message on Linux. If the app says it has no tray icon, your desktop doesn't show StatusNotifierItem icons: on GNOME install the AppIndicator extension. The icon then appears without a restart.
+The Linux app is `capycal-app` (see [Desktop app (Linux)](app/linux.md)); `capycal-ui` is the macOS app and only prints a message on Linux. If the app says it has no tray icon, your desktop doesn't show StatusNotifierItem icons: on GNOME install the AppIndicator extension. The icon then appears without a restart.
 
 ## Config file and CLI
 

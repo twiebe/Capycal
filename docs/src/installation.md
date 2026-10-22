@@ -8,8 +8,8 @@ Prebuilt downloads are on the [releases page](https://github.com/twiebe/capycal/
 | macOS CLI (Apple silicon) | `capycal-v<version>-aarch64-apple-darwin.tar.gz` |
 | Linux x86_64 (static) | `capycal-v<version>-x86_64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_amd64.deb`, `capycal-<version>-1.x86_64.rpm` |
 | Linux arm64 (static) | `capycal-v<version>-aarch64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_arm64.deb`, `capycal-<version>-1.aarch64.rpm` |
-| Arch Linux | `PKGBUILD` of the AUR package `capycal-bin` |
-| Linux desktop app (x86_64, arm64; GTK 4.14+) | `capycal-gtk_<version>-1_<arch>.deb`, `capycal-gtk-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
+| Arch Linux | AUR packages `capycal-bin` (CLI) and `capycal-app-bin` (desktop app) |
+| Linux desktop app (x86_64, arm64; GTK 4.14+) | `capycal-app_<version>-1_<arch>.deb`, `capycal-app-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
 
 On macOS and Linux, [Homebrew](#homebrew) installs the CLI and the macOS app from the tap `twiebe/capycal`.
 
@@ -54,7 +54,7 @@ sudo apt install ./capycal_<version>-1_amd64.deb     # Debian, Ubuntu
 sudo dnf install ./capycal-<version>-1.x86_64.rpm    # Fedora, RHEL, openSUSE (zypper)
 ```
 
-On Arch Linux, install `capycal-bin` from the AUR, or build the `PKGBUILD` from the release with `makepkg -si`.
+On Arch Linux, install `capycal-bin` from the AUR, or build `capycal-bin.PKGBUILD` from the release with `makepkg -si -p capycal-bin.PKGBUILD`.
 
 The packages install `/usr/bin/capycal`, the man page (`man capycal`), completions for bash, zsh and fish, and two systemd units that are not enabled: the user service `capycal.service` (runs your default config, see [User service](cli/server.md#user-service)) and the system service `capycal.service` (see [System service](cli/server.md#system-service)). Then:
 

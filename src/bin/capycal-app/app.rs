@@ -15,7 +15,7 @@ use capycal::{
 use chrono::Utc;
 use gtk::{gdk_pixbuf, gio, glib};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::autostart;
 use crate::backend::{Backend, Command, Snapshot, Update, ensure_config_file, other_desktop_app};
@@ -94,23 +94,26 @@ pub fn run(config_path: PathBuf) -> ExitCode {
     let level = capycal::Config::load(&config_path)
         .map(|c| c.daemon.log_level)
         .unwrap_or_else(|_| "info".to_string());
-    let log_file = default_log_file("capycal-gtk")
-        .unwrap_or_else(|| std::env::temp_dir().join("capycal-gtk.log"));
+    let log_file = default_log_file("capycal-app")
+        .unwrap_or_else(|| std::env::temp_dir().join("capycal-app.log"));
     let (logs, log_file, log_level) =
         match init_with_buffer(&level, &log_file, DEFAULT_LOG_CAPACITY) {
             Ok(logs) => logs,
             Err(e) => {
-                eprintln!("capycal-gtk: {e}");
+                eprintln!("capycal-app: {e}");
                 return ExitCode::FAILURE;
             }
         };
-    info!(version = env!("CARGO_PKG_VERSION"), config = %config_path.display(), "capycal-gtk started");
+    info!(version = env!("CARGO_PKG_VERSION"), config = %config_path.display(), "capycal-app started");
     match ensure_config_file(&config_path) {
         Ok(true) => info!(config = %config_path.display(), "starter config written"),
         Ok(false) => {}
         Err(e) => {
             error!(config = %config_path.display(), error = %e, "cannot write the starter config")
         }
+    }
+    if let Err(e) = autostart::repair(&config_path) {
+        warn!(error = %e, "cannot update the autostart entry");
     }
 
     // A second start activates the running instance instead

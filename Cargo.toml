@@ -40,32 +40,36 @@ assets = [
 
 # The desktop app as its own package (glibc build with GTK)
 [package.metadata.deb.variants.gtk]
-name = "capycal-gtk"
+name = "capycal-app"
 depends = "libc6, libgtk-4-1 (>= 4.14), libadwaita-1-0 (>= 1.5)"
+# Called capycal-gtk up to 0.1.0
+conflicts = "capycal-gtk"
+replaces = "capycal-gtk"
+provides = "capycal-gtk"
 extended-description = """\
 The Capycal desktop app: a tray icon that runs your calendar syncs in the \
 background, with a log window, problem reports and calendar discovery. \
 GNOME needs the AppIndicator extension to show tray icons."""
 assets = [
-    ["target/release/capycal-gtk", "usr/bin/", "755"],
+    ["target/release/capycal-app", "usr/bin/", "755"],
     ["packaging/linux/app.capycal.desktop", "usr/share/applications/", "644"],
-    ["dist/pkg-gtk/icon-16.png", "usr/share/icons/hicolor/16x16/apps/app.capycal.png", "644"],
-    ["dist/pkg-gtk/icon-32.png", "usr/share/icons/hicolor/32x32/apps/app.capycal.png", "644"],
-    ["dist/pkg-gtk/icon-128.png", "usr/share/icons/hicolor/128x128/apps/app.capycal.png", "644"],
-    ["dist/pkg-gtk/icon-256.png", "usr/share/icons/hicolor/256x256/apps/app.capycal.png", "644"],
-    ["dist/pkg-gtk/icon-512.png", "usr/share/icons/hicolor/512x512/apps/app.capycal.png", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-heart-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-sync-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-check-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-tray-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-tray-error-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-tray-syncing-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-tray-inactive-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-gtk/icons/capycal-calendar-remove-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
-    ["src/bin/capycal-ui/assets/OCTICONS-LICENSE", "usr/share/doc/capycal-gtk/", "644"],
-    ["src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", "usr/share/doc/capycal-gtk/", "644"],
-    ["CONTRIBUTORS.md", "usr/share/doc/capycal-gtk/", "644"],
-    ["THIRD-PARTY-NOTICES.txt", "usr/share/doc/capycal-gtk/", "644"],
+    ["dist/pkg-app/icon-16.png", "usr/share/icons/hicolor/16x16/apps/app.capycal.png", "644"],
+    ["dist/pkg-app/icon-32.png", "usr/share/icons/hicolor/32x32/apps/app.capycal.png", "644"],
+    ["dist/pkg-app/icon-128.png", "usr/share/icons/hicolor/128x128/apps/app.capycal.png", "644"],
+    ["dist/pkg-app/icon-256.png", "usr/share/icons/hicolor/256x256/apps/app.capycal.png", "644"],
+    ["dist/pkg-app/icon-512.png", "usr/share/icons/hicolor/512x512/apps/app.capycal.png", "644"],
+    ["src/bin/capycal-app/icons/capycal-heart-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-sync-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-check-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-tray-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-tray-error-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-tray-syncing-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-tray-inactive-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-app/icons/capycal-calendar-remove-symbolic.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["src/bin/capycal-ui/assets/OCTICONS-LICENSE", "usr/share/doc/capycal-app/", "644"],
+    ["src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", "usr/share/doc/capycal-app/", "644"],
+    ["CONTRIBUTORS.md", "usr/share/doc/capycal-app/", "644"],
+    ["THIRD-PARTY-NOTICES.txt", "usr/share/doc/capycal-app/", "644"],
 ]
 
 [package.metadata.generate-rpm]
@@ -86,29 +90,32 @@ assets = [
 
 
 [package.metadata.generate-rpm.variants.gtk]
-name = "capycal-gtk"
+name = "capycal-app"
 requires = { gtk4 = ">= 4.14", libadwaita = ">= 1.5" }
+# Called capycal-gtk up to 0.1.0
+obsoletes = { capycal-gtk = "*" }
+provides = { capycal-gtk = "*" }
 assets = [
-    { source = "target/release/capycal-gtk", dest = "/usr/bin/capycal-gtk", mode = "755" },
+    { source = "target/release/capycal-app", dest = "/usr/bin/capycal-app", mode = "755" },
     { source = "packaging/linux/app.capycal.desktop", dest = "/usr/share/applications/app.capycal.desktop", mode = "644" },
-    { source = "dist/pkg-gtk/icon-16.png", dest = "/usr/share/icons/hicolor/16x16/apps/app.capycal.png", mode = "644" },
-    { source = "dist/pkg-gtk/icon-32.png", dest = "/usr/share/icons/hicolor/32x32/apps/app.capycal.png", mode = "644" },
-    { source = "dist/pkg-gtk/icon-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/app.capycal.png", mode = "644" },
-    { source = "dist/pkg-gtk/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/app.capycal.png", mode = "644" },
-    { source = "dist/pkg-gtk/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/app.capycal.png", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-heart-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-heart-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-sync-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-sync-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-check-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-check-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-tray-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-tray-error-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-error-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-tray-syncing-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-syncing-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-tray-inactive-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-inactive-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-gtk/icons/capycal-calendar-remove-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-calendar-remove-symbolic.svg", mode = "644" },
-    { source = "src/bin/capycal-ui/assets/OCTICONS-LICENSE", dest = "/usr/share/doc/capycal-gtk/OCTICONS-LICENSE", mode = "644", doc = true },
-    { source = "src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", dest = "/usr/share/doc/capycal-gtk/SIMPLE-ICONS-LICENSE", mode = "644", doc = true },
-    { source = "LICENSE", dest = "/usr/share/licenses/capycal-gtk/LICENSE", mode = "644", doc = true },
-    { source = "CONTRIBUTORS.md", dest = "/usr/share/licenses/capycal-gtk/CONTRIBUTORS.md", mode = "644", doc = true },
-    { source = "THIRD-PARTY-NOTICES.txt", dest = "/usr/share/licenses/capycal-gtk/THIRD-PARTY-NOTICES.txt", mode = "644", doc = true },
+    { source = "dist/pkg-app/icon-16.png", dest = "/usr/share/icons/hicolor/16x16/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-app/icon-32.png", dest = "/usr/share/icons/hicolor/32x32/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-app/icon-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-app/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/app.capycal.png", mode = "644" },
+    { source = "dist/pkg-app/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/app.capycal.png", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-heart-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-heart-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-sync-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-sync-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-check-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-check-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-tray-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-tray-error-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-error-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-tray-syncing-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-syncing-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-tray-inactive-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-tray-inactive-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-app/icons/capycal-calendar-remove-symbolic.svg", dest = "/usr/share/icons/hicolor/scalable/apps/capycal-calendar-remove-symbolic.svg", mode = "644" },
+    { source = "src/bin/capycal-ui/assets/OCTICONS-LICENSE", dest = "/usr/share/doc/capycal-app/OCTICONS-LICENSE", mode = "644", doc = true },
+    { source = "src/bin/capycal-ui/assets/SIMPLE-ICONS-LICENSE", dest = "/usr/share/doc/capycal-app/SIMPLE-ICONS-LICENSE", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/capycal-app/LICENSE", mode = "644", doc = true },
+    { source = "CONTRIBUTORS.md", dest = "/usr/share/licenses/capycal-app/CONTRIBUTORS.md", mode = "644", doc = true },
+    { source = "THIRD-PARTY-NOTICES.txt", dest = "/usr/share/licenses/capycal-app/THIRD-PARTY-NOTICES.txt", mode = "644", doc = true },
 ]
 
 [dependencies]
@@ -134,7 +141,7 @@ iana-time-zone = "0.1.65"
 notify = "8"
 clap_complete = "4"
 clap_mangen = "0.3"
-# The GTK desktop app (capycal-gtk). The tray is Linux-only; the windows also
+# The GTK desktop app (capycal-app). The tray is Linux-only; the windows also
 # build on macOS with Homebrew's gtk4 and libadwaita, for development.
 gtk = { package = "gtk4", version = "0.11", features = ["v4_14"], optional = true }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_5"], optional = true }
@@ -163,8 +170,8 @@ gtk = ["dep:gtk", "dep:adw", "dep:async-channel", "dep:ksni"]
 ui = ["dep:tray-icon", "dep:tao", "dep:rfd", "dep:objc2-service-management", "dep:objc2-app-kit", "objc2-foundation/NSAttributedString", "objc2-foundation/NSData", "objc2-foundation/NSDictionary", "objc2-foundation/NSGeometry", "objc2-foundation/NSNotification", "objc2-foundation/NSRange", "objc2-foundation/NSURL", "objc2-foundation/NSUserDefaults"]
 
 [[bin]]
-name = "capycal-gtk"
-path = "src/bin/capycal-gtk/main.rs"
+name = "capycal-app"
+path = "src/bin/capycal-app/main.rs"
 required-features = ["gtk"]
 
 [[bin]]

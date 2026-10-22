@@ -23,7 +23,7 @@ from shapely.ops import unary_union
 HERE = os.path.dirname(os.path.abspath(__file__))
 BOOK_THEME = os.path.join(HERE, "..", "..", "..", "docs", "theme")
 BOOK_SRC = os.path.join(HERE, "..", "..", "..", "docs", "src")
-GTK_ICONS = os.path.join(HERE, "..", "..", "..", "src", "bin", "capycal-gtk", "icons")
+GTK_ICONS = os.path.join(HERE, "..", "..", "..", "src", "bin", "capycal-app", "icons")
 UI_ASSETS = os.path.join(HERE, "..", "..", "..", "src", "bin", "capycal-ui", "assets")
 FONT = TTFont(sys.argv[1])
 GLYPHS = FONT.getGlyphSet()

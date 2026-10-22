@@ -1,6 +1,6 @@
 ---
 name: ui-review
-description: Check a change to the Capycal desktop apps (capycal-ui on macOS, capycal-gtk on Linux) against the UI and UX guidelines before it is committed. Use after any change to a window, a dialog, the menu or the texts they show, and when asked to review UI or UX.
+description: Check a change to the Capycal desktop apps (capycal-ui on macOS, capycal-app on Linux) against the UI and UX guidelines before it is committed. Use after any change to a window, a dialog, the menu or the texts they show, and when asked to review UI or UX.
 ---
 
 # UI review
@@ -11,7 +11,7 @@ Review the current change (`git diff` against the last commit, or the branch aga
 
 - Models: `src/bin/capycal-ui/{settings_view,settings,sync_form,transform_form,account_form,picker,preview,menu,dialog,problems,purge,sponsor,logview}.rs`
 - macOS renderers: `src/bin/capycal-ui/*_macos.rs`, `app.rs`
-- GTK renderers: `src/bin/capycal-gtk/*.rs`
+- GTK renderers: `src/bin/capycal-app/*.rs`
 - User docs: `docs/src/app/*.md`, the `> **In the app:**` lines in `docs/src/concepts/` and `docs/src/cookbook/`
 
 ## 2. Go through the checklist
