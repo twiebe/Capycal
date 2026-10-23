@@ -11,7 +11,7 @@ use objc2_event_kit::{
     EKRecurrenceFrequency, EKRecurrenceRule, EKSpan, EKWeekday,
 };
 use objc2_foundation::{
-    NSArray, NSCalendar, NSCalendarUnit, NSDate, NSNumber, NSString, NSTimeZone,
+    NSArray, NSCalendar, NSCalendarUnit, NSDate, NSNumber, NSString, NSTimeZone, NSURL,
 };
 use tracing::{debug, error, warn};
 
@@ -660,11 +660,18 @@ fn read_event(event: &EKEvent) -> EkEventData {
             times,
             title: event.title().to_string(),
             location: event.location().map(|s| s.to_string()),
+            url: read_url(event),
             notes: event.notes().map(|s| s.to_string()),
             availability: read_availability(event),
             alarms: read_alarms(event),
         }
     }
+}
+
+fn read_url(event: &EKEvent) -> Option<String> {
+    unsafe { event.URL() }
+        .and_then(|url| url.absoluteString())
+        .map(|s| s.to_string())
 }
 
 /// Read the fields `apply_update` sets from a sink event.
@@ -691,6 +698,7 @@ fn read_stored(event: &EKEvent) -> StoredEvent {
         StoredEvent {
             title: event.title().to_string(),
             location: event.location().map(|s| s.to_string()),
+            url: read_url(event),
             notes: event.notes().map(|s| s.to_string()),
             times,
             alarms: read_alarms(event),
@@ -710,6 +718,13 @@ fn apply_update(event: &EKEvent, calendar: &EKCalendar, update: &SinkUpdate) {
         }
         if let Some(location) = &update.location {
             event.setLocation(Some(&NSString::from_str(location)));
+        }
+        if let Some(url) = &update.url {
+            // An empty or unreadable URL removes it
+            let url = Some(url)
+                .filter(|u| !u.is_empty())
+                .and_then(|u| NSURL::URLWithString(&NSString::from_str(u)));
+            event.setURL(url.as_deref());
         }
         if let Some(notes) = &update.notes {
             event.setNotes(Some(&NSString::from_str(notes)));
@@ -1376,8 +1391,7 @@ STATUS:CANCELLED";
     async fn live_single_event_round_trip() {
         let calendar = TestCalendar::new("single");
         let sink = calendar.sink();
-        let body =
-            "DTSTART:20270104T090000Z\nDTEND:20270104T100000Z\nSUMMARY:Single\nTRANSP:TRANSPARENT";
+        let body = "DTSTART:20270104T090000Z\nDTEND:20270104T100000Z\nSUMMARY:Single\nURL:https://meet.example.com/single\nTRANSP:TRANSPARENT";
         let ical = ics("single", body);
         let put = sink.put_event("capycal-single.ics", &ical).await.unwrap();
         let occurrences = calendar.occurrences();
@@ -1389,6 +1403,7 @@ STATUS:CANCELLED";
         assert_eq!(synced[0].source_uid.as_deref(), Some("single"));
         assert!(sink.is_unchanged(&synced[0].stored, &ical));
         assert!(!sink.is_unchanged(&synced[0].stored, &ical.replace("Single", "Other")));
+        assert!(!sink.is_unchanged(&synced[0].stored, &ical.replace("/single", "/other")));
     }
 
     #[tokio::test]

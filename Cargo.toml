@@ -151,7 +151,7 @@ async-channel = { version = "2", optional = true }
 apple-native-keyring-store = { version = "1", features = ["keychain"] }
 security-framework = "3.7"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSCalendar", "NSTimeZone", "NSError", "NSObjCRuntime", "NSValue"] }
+objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSCalendar", "NSTimeZone", "NSError", "NSObjCRuntime", "NSURL", "NSValue"] }
 objc2-event-kit = { version = "0.3", features = ["EKAlarm", "EKEventStore", "EKEvent", "EKCalendar", "EKCalendarItem", "EKObject", "EKSource", "EKRecurrenceRule", "EKRecurrenceEnd", "EKRecurrenceDayOfWeek", "EKTypes", "EKStructuredLocation"] }
 block2 = "0.6"
 # capycal-ui (feature "ui"); the menu bar app only exists on macOS for now

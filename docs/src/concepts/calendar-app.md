@@ -23,11 +23,12 @@ A Calendar.app source provides these properties per event:
 | `DTSTART`, `DTEND` | start and end, with the event's timezone (`TZID`); all-day events as dates |
 | `SUMMARY` | title |
 | `LOCATION` | location |
+| `URL` | URL |
 | `DESCRIPTION` | notes (without Capycal's marker line) |
 | `TRANSP` | availability: "free" becomes `TRANSPARENT`, busy, tentative and unavailable become `OPAQUE` |
 | `VALARM` | alarms, relative or absolute |
 
-Attendees, organizer, URL, status and recurrence rules are not available. Cancelled events are skipped.
+Attendees, organizer, status and recurrence rules are not available. Cancelled events are skipped.
 
 ### Recurring events
 
@@ -49,7 +50,7 @@ When writing to Calendar.app, Capycal translates timezone names macOS doesn't kn
 
 ## What is written
 
-A Calendar.app target sets title, location, notes, start, end, all-day flag, availability, alarms and recurrence from the synced event:
+A Calendar.app target sets title, location, URL, notes, start, end, all-day flag, availability, alarms and recurrence from the synced event:
 
 - `DTEND`, or `DURATION` if there is no `DTEND`, sets the end.
 - `TRANSP:TRANSPARENT` sets availability "free", anything else "busy" (if the calendar supports availability).

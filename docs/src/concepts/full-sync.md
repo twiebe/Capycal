@@ -14,7 +14,7 @@ When events are gone from the source and it now has less than half as many event
 
 ## Unchanged events
 
-An event whose stored content is unchanged is not written again. On a CalDAV target the comparison ignores the `DTSTAMP`, `LAST-MODIFIED`, `CREATED` and `SEQUENCE` lines, line folding and line endings. On a Calendar.app target Capycal compares the fields it writes (title, location, notes with the marker, start, end, all-day flag, alarms and availability; times as instants, alarms in any order), so unchanged events keep their modification date and are not uploaded to the account again. An event with an old-style marker is written again to update the marker.
+An event whose stored content is unchanged is not written again. On a CalDAV target the comparison ignores the `DTSTAMP`, `LAST-MODIFIED`, `CREATED` and `SEQUENCE` lines, line folding and line endings. On a Calendar.app target Capycal compares the fields it writes (title, location, URL, notes with the marker, start, end, all-day flag, alarms and availability; times as instants, alarms in any order), so unchanged events keep their modification date and are not uploaded to the account again. An event with an old-style marker is written again to update the marker.
 
 ## When it runs
 

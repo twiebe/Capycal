@@ -179,6 +179,7 @@ pub struct EkEventData {
     pub times: EkTimes,
     pub title: String,
     pub location: Option<String>,
+    pub url: Option<String>,
     pub notes: Option<String>,
     pub availability: Availability,
     pub alarms: Vec<Alarm>,
@@ -232,6 +233,13 @@ impl EkEventData {
             && !loc.is_empty()
         {
             lines.push(format!("LOCATION:{}", escape_text(loc)));
+        }
+
+        // A URI, not text: written as it is
+        if let Some(url) = &self.url
+            && !url.is_empty()
+        {
+            lines.push(format!("URL:{url}"));
         }
 
         if let Some(notes) = &self.notes {
@@ -379,6 +387,7 @@ pub enum IcalAlarm {
 pub struct SinkUpdate {
     pub title: Option<String>,
     pub location: Option<String>,
+    pub url: Option<String>,
     pub notes: Option<String>,
     pub start: Option<IcalTime>,
     pub end: Option<IcalTime>,
@@ -483,6 +492,7 @@ fn parse_vevent(lines: &[&str]) -> SinkUpdate {
             "TRANSP" => update.transparent = value == "TRANSPARENT",
             "SUMMARY" => update.title = Some(unescape_text(value)),
             "LOCATION" => update.location = Some(unescape_text(value)),
+            "URL" => update.url = Some(value.to_string()),
             "DESCRIPTION" => update.notes = Some(unescape_text(value)),
             "DTSTART" => update.start = Some(ical_time(line, value)),
             "DURATION" => update.duration = parse_ical_duration(value),
@@ -712,6 +722,7 @@ pub enum StoredTimes {
 pub struct StoredEvent {
     pub title: String,
     pub location: Option<String>,
+    pub url: Option<String>,
     pub notes: Option<String>,
     pub times: StoredTimes,
     pub alarms: Vec<Alarm>,
@@ -755,6 +766,7 @@ pub fn is_unchanged(
     };
     text_matches(&update.title, Some(&stored.title))
         && text_matches(&update.location, stored.location.as_deref())
+        && text_matches(&update.url, stored.url.as_deref())
         && text_matches(&notes, stored.notes.as_deref())
         && stored.free.is_none_or(|free| free == update.transparent)
         && same_times(update, &stored.times, &to_ts)
@@ -877,6 +889,7 @@ mod tests {
             },
             title: "Meeting".to_string(),
             location: None,
+            url: None,
             notes: None,
             availability: Availability::Busy,
             alarms: vec![],
@@ -973,6 +986,15 @@ mod tests {
         assert!(!has_prefix(&event, "LOCATION"));
         event.location = Some("Room 1, Floor 2".to_string());
         assert!(has(&event, "LOCATION:Room 1\\, Floor 2"));
+    }
+
+    #[test]
+    fn test_ical_url() {
+        let mut event = timed();
+        event.url = Some(String::new());
+        assert!(!has_prefix(&event, "URL"));
+        event.url = Some("https://meet.example.com/a,b;c".to_string());
+        assert!(has(&event, "URL:https://meet.example.com/a,b;c"));
     }
 
     #[test]
@@ -1142,7 +1164,7 @@ mod tests {
     #[test]
     fn test_parse_all_properties() {
         let ical = vevent(
-            "UID:x\r\nSUMMARY:Lunch\r\nLOCATION:Cafe\r\nDESCRIPTION:a\\nb\r\n\
+            "UID:x\r\nSUMMARY:Lunch\r\nLOCATION:Cafe\r\nURL:https://example.com/x\r\nDESCRIPTION:a\\nb\r\n\
              DTSTART;TZID=Europe/Berlin:20240115T120000\r\nDTEND:20240115T120000Z\r\n\
              TRANSP:TRANSPARENT\r\nX-CAPYCAL-SOURCE:work/uid-1\r\nX-CAPYCAL-SYNC:s",
         );
@@ -1151,6 +1173,7 @@ mod tests {
             SinkUpdate {
                 title: Some("Lunch".to_string()),
                 location: Some("Cafe".to_string()),
+                url: Some("https://example.com/x".to_string()),
                 notes: Some("a\nb".to_string()),
                 start: Some(IcalTime::DateTime {
                     value: "20240115T120000".to_string(),
@@ -1311,7 +1334,7 @@ mod tests {
 
     const SYNCED: &str = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:sink-1\r\n\
         DTSTART;TZID=Europe/Berlin:20240115T100000\r\nDTEND;TZID=Europe/Berlin:20240115T110000\r\n\
-        SUMMARY:Meeting\r\nLOCATION:Room\r\nDESCRIPTION:Agenda\r\nTRANSP:OPAQUE\r\n\
+        SUMMARY:Meeting\r\nLOCATION:Room\r\nURL:https://example.com/m\r\nDESCRIPTION:Agenda\r\nTRANSP:OPAQUE\r\n\
         X-CAPYCAL-SOURCE:work/u\r\nX-CAPYCAL-SYNC:s\r\n\
         BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n\
         BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER;VALUE=DATE-TIME:20240115T080000Z\r\nEND:VALARM\r\n\
@@ -1321,6 +1344,7 @@ mod tests {
         StoredEvent {
             title: "Meeting".to_string(),
             location: Some("Room".to_string()),
+            url: Some("https://example.com/m".to_string()),
             notes: Some(format!("Agenda\n{}", marker("s", "work", "u").line())),
             times: StoredTimes::Timed {
                 start: START,
@@ -1350,10 +1374,11 @@ mod tests {
 
     #[test]
     fn test_changed_when_a_field_differs() {
-        let changes: [fn(&mut StoredEvent); 9] = [
+        let changes: [fn(&mut StoredEvent); 10] = [
             |s| s.floating = true,
             |s| s.title = "Other".to_string(),
             |s| s.location = None,
+            |s| s.url = None,
             |s| s.notes = Some(marker("s", "work", "u").line()),
             |s| s.notes = Some("Agenda\n[capycal:work]".to_string()),
             |s| {
