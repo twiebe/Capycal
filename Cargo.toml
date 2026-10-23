@@ -76,7 +76,7 @@ assets = [
 
 [package.metadata.generate-rpm]
 # The user of capycal.service
-post_install_script = "command -v systemd-sysusers >/dev/null 2>&1 && systemd-sysusers capycal.conf || true"
+post_install_script = "command -v systemd-sysusers >/dev/null 2>&1 && systemd-sysusers capycal.conf || true; [ -e /etc/capycal ] || ! getent group capycal >/dev/null || install -d -m 1770 -o root -g capycal /etc/capycal"
 assets = [
     { source = "target/release/capycal", dest = "/usr/bin/capycal", mode = "755" },
     { source = "dist/pkg/capycal.1", dest = "/usr/share/man/man1/capycal.1", mode = "644", doc = true },

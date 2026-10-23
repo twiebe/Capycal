@@ -2,7 +2,7 @@
 #   sudo install -m 0755 capycal /usr/local/bin/capycal
 #   sudo install -D -m 0644 capycal.sysusers /usr/lib/sysusers.d/capycal.conf
 #   sudo systemd-sysusers capycal.conf    # the user capycal
-#   sudo install -d -o capycal -g capycal /etc/capycal
+#   sudo install -d -m 1770 -o root -g capycal /etc/capycal   # sticky: capycal can't touch capycal.env
 #   sudo install -o capycal -g capycal -m 0640 capycal.toml /etc/capycal/capycal.toml    # no passwords in here
 #   sudo install -m 0600 capycal.env /etc/capycal/capycal.env   # passwords, see capycal.toml { env = "..." }
 #   sudo cp capycal.service /etc/systemd/system/
@@ -30,11 +30,10 @@ TimeoutStopSec=45s
 User=capycal
 Group=capycal
 StateDirectory=capycal
-ConfigurationDirectory=capycal
 # Capycal updates a config of an older version itself, keeping a backup next to it.
 # Remove this line to keep the config read-only; Capycal then warns and runs with the
 # update in memory.
-ReadWritePaths=/etc/capycal
+ReadWritePaths=-/etc/capycal
 
 NoNewPrivileges=yes
 ProtectSystem=strict

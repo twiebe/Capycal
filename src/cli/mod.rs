@@ -41,7 +41,7 @@ pub struct Cli {
 
     /// Update an old config file to the current format, keeping a backup,
     /// then exit. Running does that too; this is for a file the daemon may
-    /// not write, such as a systemd ExecStartPre
+    /// not write, such as a config mounted read-only in a container
     #[arg(long)]
     pub migrate_config: bool,
 

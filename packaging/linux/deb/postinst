@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
-# The user of capycal.service
+# The user of capycal.service and its config directory: group-writable and
+# sticky, so the service can update capycal.toml but not touch capycal.env
 if [ "$1" = "configure" ] && command -v systemd-sysusers >/dev/null 2>&1; then
     systemd-sysusers capycal.conf || true
+    if [ ! -e /etc/capycal ] && getent group capycal >/dev/null; then
+        install -d -m 1770 -o root -g capycal /etc/capycal
+    fi
 fi
