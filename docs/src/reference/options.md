@@ -2,6 +2,12 @@
 
 Every option the config parser accepts. Durations use [humantime](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html) syntax (`"30s"`, `"15m"`, `"1h 30m"`). Unknown keys are errors.
 
+## Top level
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `version` | integer | `1` when missing | The format of the file. Capycal updates an older file when it loads it and refuses a newer one. Details: [Updates of the config file](../cli/config-file.md#updates-of-the-config-file) |
+
 ## `[daemon]`
 
 The table and all its options are optional.

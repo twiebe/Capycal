@@ -574,6 +574,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
         };
         // Only what reading the source needs: its account and calendar
         let config = capycal::Config {
+            version: loaded.version,
             daemon: Default::default(),
             accounts: loaded.accounts.clone(),
             calendars: [(sync.source.clone(), calendar)].into(),
@@ -1090,7 +1091,8 @@ mod tests {
         std::fs::write(
             &path,
             format!(
-                r#"
+                r#"version = 2
+
 [daemon]
 state_dir = "{}"
 

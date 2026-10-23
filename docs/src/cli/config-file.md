@@ -140,6 +140,14 @@ A CLI daemon started with `--only` applies the same selection to the reloaded co
 
 Removing a sync from the config stops it but leaves its events in the target and its state file in the state directory. Run `capycal --purge <sync>` before removing it if the events should go too.
 
+## Updates of the config file
+
+The file starts with `version = 2`, the format it is written in. When an update of Capycal changes the format, for example renames an option, Capycal updates the file the first time it loads it: at start, and on every reload. Before it writes the new file, it keeps the old one next to it as `capycal.toml.<date>-<time>.bak` (for example `capycal.toml.20261023-142501.bak`), with the same permissions, and logs every change it made. To go back to an older Capycal, put the backup back in place.
+
+A file without `version` is version 1. A file with a higher version than Capycal knows was written by a newer Capycal; Capycal refuses it and asks to be updated.
+
+If the file or its directory is read-only (a container with the config mounted read-only, for example), Capycal runs with the updated config in memory and logs a warning on every load. Make the file writable once and Capycal updates it on the next start or reload.
+
 ## Config lock
 
 One config runs in one process at a time. Two processes with the same config would write the same state files and create duplicates. The daemon, `--once`, `--full-sync`, `--purge`, `--purge-all` and the desktop app take an exclusive lock for the config file; a second process with the same config stops with an error naming the config and the pid that holds it. The app shows "Another Capycal runs this config (pid N)" instead and keeps checking on reload.

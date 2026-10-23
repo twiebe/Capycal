@@ -1,6 +1,10 @@
 # Capycal - Calendar Sync
 # Example configuration file. Unknown keys are errors; [daemon] is optional.
 
+# The format of this file. Capycal updates an older file when it loads it and
+# keeps the old one as capycal.toml.<date>-<time>.bak.
+version = 2
+
 [daemon]
 # state_dir = "/var/lib/capycal"  # optional - defaults to $CAPYCAL_STATE_DIR, else the OS state dir (e.g. ~/.local/state/capycal/)
 log_level = "info"

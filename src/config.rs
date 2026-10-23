@@ -11,6 +11,9 @@ use crate::ical::transform::{Action, Condition, Test, Transform};
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// The config format version, see `config_migrate`.
+    #[serde(default)]
+    pub version: Option<i64>,
     #[serde(default)]
     pub daemon: DaemonConfig,
     #[serde(default)]
@@ -556,10 +559,25 @@ impl Config {
     pub fn load(path: &std::path::Path) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).map_err(|e| Error::Config(format!("{path:?}: {e}")))?;
-        let mut config = parse(&content)
-            .map_err(|e| Error::Config(format!("failed to parse {}: {e}", path.display())))?;
+        let parse_error = |e| Error::Config(format!("failed to parse {}: {e}", path.display()));
+        // A file toml_edit cannot read gets the error of the config parser
+        let mut doc = match content.parse::<toml_edit::DocumentMut>() {
+            Ok(doc) => doc,
+            Err(_) => return Err(parse_error(parse(&content).err().unwrap_or_default())),
+        };
+        let notes = crate::config_migrate::migrate(&mut doc)
+            .map_err(|e| Error::Config(format!("{}: {e}", path.display())))?;
+        let text = if notes.is_empty() {
+            content.clone()
+        } else {
+            doc.to_string()
+        };
+        let mut config = parse(&text).map_err(parse_error)?;
         config.config_dir = path.parent().map(|p| p.to_path_buf());
         config.validate()?;
+        if !notes.is_empty() {
+            crate::config_migrate::write_back(path, &content, &text, &notes);
+        }
         Ok(config)
     }
 

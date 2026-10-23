@@ -11,9 +11,14 @@ pub const STARTER_CONFIG: &str = r###"## Capycal configuration
 ## only the properties you choose. Documentation:
 ## https://capycal.app/docs/
 ##
-## Everything below is commented out. Lines starting with "##" explain,
-## lines starting with "# " are settings: remove the "# " to use one.
-## A config needs at least one calendar pair and one [syncs.<name>] table.
+## Everything below but the version is commented out. Lines starting with
+## "##" explain, lines starting with "# " are settings: remove the "# " to
+## use one. A config needs at least one calendar pair and one [syncs.<name>]
+## table.
+
+## The format of this file. Capycal updates an older file when it loads it
+## and keeps the old one next to it as capycal.toml.<date>-<time>.bak.
+version = 2
 
 ## --- Daemon settings (optional, shown with their defaults) ---------------
 

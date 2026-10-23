@@ -28,9 +28,12 @@ impl ConfigEditor {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => return Err(Error::Config(format!("{}: {e}", path.display()))),
         };
-        let doc = text
+        let mut doc = text
             .parse::<DocumentMut>()
             .map_err(|e| Error::Config(format!("failed to parse {}: {e}", path.display())))?;
+        // Normally done by Config::load already; never write an old version
+        crate::config_migrate::migrate(&mut doc)
+            .map_err(|e| Error::Config(format!("{}: {e}", path.display())))?;
         Ok(Self {
             path: path.to_path_buf(),
             doc,
@@ -40,9 +43,11 @@ impl ConfigEditor {
     /// An editor of an empty config at `path`, for a file that cannot be
     /// read; saving it would replace the file.
     pub fn empty(path: &Path) -> Self {
+        let mut doc = DocumentMut::new();
+        let _ = crate::config_migrate::migrate(&mut doc);
         Self {
             path: path.to_path_buf(),
-            doc: DocumentMut::new(),
+            doc,
         }
     }
 
@@ -60,15 +65,10 @@ impl ConfigEditor {
     /// passwords). Returns the saved config.
     pub fn save(&self) -> Result<Config> {
         let config = self.config()?;
-        let target = std::fs::canonicalize(&self.path).unwrap_or_else(|_| self.path.clone());
-        let name = target.file_name().unwrap_or_default().to_string_lossy();
-        let tmp = target.with_file_name(format!(".{name}.tmp"));
-        let written = write_private(&tmp, &self.doc.to_string(), &target)
-            .and_then(|()| std::fs::rename(&tmp, &target));
-        if let Err(e) = written {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(Error::Config(format!("{}: {e}", target.display())));
-        }
+        write_atomic(&self.path, &self.doc.to_string()).map_err(|e| {
+            let target = std::fs::canonicalize(&self.path).unwrap_or_else(|_| self.path.clone());
+            Error::Config(format!("{}: {e}", target.display()))
+        })?;
         Ok(config)
     }
 
@@ -199,7 +199,10 @@ impl ConfigEditor {
                     let first = max_position(self.doc.as_table()).and_then(|max| {
                         (0..=max).find(|p| table_at(self.doc.as_table_mut(), *p).is_some())
                     });
+                    // Unless the version stands above it
+                    let values = self.doc.iter().any(|(_, item)| item.is_value());
                     if let Some(next) = first.and_then(|p| table_at(self.doc.as_table_mut(), p))
+                        && !values
                         && next.decor().prefix().and_then(|p| p.as_str()) == Some("\n")
                     {
                         next.decor_mut().set_prefix("");
@@ -457,7 +460,22 @@ fn condition(c: &ConditionConfig) -> InlineTable {
 
 /// Write `text` to a new file `path` that is never readable by more people
 /// than `like` (or only by the owner if `like` does not exist).
-fn write_private(path: &Path, text: &str, like: &Path) -> std::io::Result<()> {
+/// Replace the file at `path` atomically, through a symlink and with the old
+/// file's permissions (a new file is private, it may hold passwords).
+pub(crate) fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let name = target.file_name().unwrap_or_default().to_string_lossy();
+    let tmp = target.with_file_name(format!(".{name}.tmp"));
+    let written = write_private(&tmp, text, &target).and_then(|()| std::fs::rename(&tmp, &target));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    written
+}
+
+/// Write a new file at `path` with the permissions of `like` (private when
+/// `like` does not exist).
+pub(crate) fn write_private(path: &Path, text: &str, like: &Path) -> std::io::Result<()> {
     use std::io::Write;
     let _ = std::fs::remove_file(path);
     let mut options = std::fs::OpenOptions::new();
@@ -491,7 +509,7 @@ fn table_mut(item: &mut Item) -> &mut Table {
 }
 
 /// The table at `position` in `table`, nested ones included.
-fn table_at(table: &mut Table, position: isize) -> Option<&mut Table> {
+pub(crate) fn table_at(table: &mut Table, position: isize) -> Option<&mut Table> {
     for (_, item) in table.iter_mut() {
         if let Item::Table(t) = item {
             if t.position() == Some(position) {
@@ -506,7 +524,7 @@ fn table_at(table: &mut Table, position: isize) -> Option<&mut Table> {
 }
 
 /// The highest position of any table in `table`, nested ones included.
-fn max_position(table: &Table) -> Option<isize> {
+pub(crate) fn max_position(table: &Table) -> Option<isize> {
     table
         .iter()
         .flat_map(|(_, item)| match item {
@@ -611,7 +629,7 @@ url = "https://work.example.com/home/"
     #[test]
     fn test_missing_file_is_an_empty_config() {
         let editor = ConfigEditor::load(&test_path("missing")).unwrap();
-        assert_eq!(editor.to_string(), "");
+        assert_eq!(editor.to_string(), "version = 2\n");
         assert!(editor.config().unwrap().syncs.is_empty());
     }
 
@@ -632,7 +650,7 @@ url = "https://work.example.com/home/"
         let text = editor.to_string();
         assert!(
             text.starts_with(
-                "# my capycal config\n\n[daemon]\nlog_level = \"debug\" # keep this\n"
+                "# my capycal config\n\nversion = 2\n\n[daemon]\nlog_level = \"debug\" # keep this\n"
             ),
             "{text}"
         );
@@ -731,7 +749,7 @@ url = "https://work.example.com/home/"
         );
         assert_eq!(
             editor.to_string(),
-            "[accounts.acc]\nurl = \"https://x/\"\nusername = \"alice\"\npassword = \"p\"\n\n\
+            "version = 2\n\n[accounts.acc]\nurl = \"https://x/\"\nusername = \"alice\"\npassword = \"p\"\n\n\
              [calendars.work]\naccount = \"acc\"\nurl = \"https://x/work/\"\n\n\
              [calendars.big]\naccount = \"acc\"\nurl = \"https://x/big/\"\nconcurrency = 4\n\n\
              [calendars.mac]\neventkit_calendar = \"iCloud/Family\"\n"
@@ -1068,7 +1086,7 @@ url = "https://work.example.com/home/"
         editor.set_log_level("debug");
         let text = editor.to_string();
         assert!(
-            text.starts_with("[daemon]\nlog_level = \"debug\"\n"),
+            text.starts_with("version = 2\n\n[daemon]\nlog_level = \"debug\"\n"),
             "{text}"
         );
         assert_eq!(editor.config().unwrap().daemon.log_level, "debug");

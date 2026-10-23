@@ -4,6 +4,7 @@ mod caldav;
 pub mod cli;
 mod config;
 mod config_edit;
+mod config_migrate;
 mod config_watch;
 mod error;
 mod eventkit;
