@@ -628,6 +628,36 @@ async fn test_purge_of_one_direction_keeps_the_other() {
 }
 
 #[tokio::test]
+#[ignore = "needs a CalDAV server, run `make test-caldav`"]
+async fn test_full_sync_runs_once_a_day() {
+    let setup = Setup::new("daily", "").await;
+    let full_sync = |output: std::process::Output| {
+        let log = String::from_utf8_lossy(&output.stdout).to_string();
+        assert!(output.status.success(), "{log}");
+        log.contains("full sync started")
+    };
+    assert!(full_sync(setup.capycal_output(&["--once"])));
+    assert!(!full_sync(setup.capycal_output(&["--once"])));
+
+    // The last full sync was yesterday
+    let path = setup.dir.join("state").join("test.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let yesterday = chrono::Utc::now() - chrono::TimeDelta::days(1);
+    state["last_full_sync"] = serde_json::json!(yesterday.to_rfc3339());
+    std::fs::write(&path, state.to_string()).unwrap();
+    let output = setup.capycal_output(&["--once"]);
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("\"daily\""),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(full_sync(output));
+    assert!(!full_sync(setup.capycal_output(&["--once"])));
+    setup.cleanup().await;
+}
+
+#[tokio::test]
 #[ignore]
 async fn test_disabled_sync_is_skipped_and_full_syncs_when_enabled() {
     let setup = Setup::new("disabled", "enabled = true").await;
