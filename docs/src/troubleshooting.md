@@ -62,7 +62,7 @@ The app is not notarized. Right-click `Capycal.app` in Finder and choose **Open*
 - Check System Settings > Privacy & Security > Calendars. The permission belongs to "Capycal" for the app, to the terminal app for the CLI in a terminal, and to the `capycal` binary for a LaunchAgent (see [Permissions](concepts/calendar-app.md#permissions)).
 - If you denied the prompt once, macOS doesn't ask again. Enable Capycal in the settings, or reset it with `tccutil reset Calendar app.capycal` (app) and start again.
 - `calendar '...' not found in Calendar.app`: compare the `eventkit_calendar` value with the output of `capycal --discover-eventkit`.
-- Events outside the [query window](concepts/syncs.md#calendarapp-query-window) are not synced.
+- Events outside the [event window](concepts/syncs.md#event-window) are not synced.
 
 ### Linux desktop app
 
@@ -80,7 +80,7 @@ Two different configs share a state directory and have a sync with the same name
 
 ### "unknown field `...`"
 
-The config has a key Capycal doesn't know at this place. The message shows the line and the keys allowed there. Check spelling and placement: `eventkit_days_past` belongs to the `[syncs.<name>]` table, not to the calendar; `concurrency` belongs to the calendar; `[daemon]` options don't go into a sync.
+The config has a key Capycal doesn't know at this place. The message shows the line and the keys allowed there. Check spelling and placement: `days_past` belongs to the `[syncs.<name>]` table, not to the calendar; `concurrency` belongs to the calendar; `[daemon]` options don't go into a sync.
 
 ### "syncs are named tables now: replace `[[syncs]]` ..."
 

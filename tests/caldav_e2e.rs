@@ -926,3 +926,40 @@ async fn test_any_group_needs_one_of_its_conditions() {
     );
     setup.cleanup().await;
 }
+
+/// An event at 09:00 UTC `days` from today.
+fn event_in(uid: &str, days: i64, extra: &str) -> String {
+    let day = chrono::Utc::now() + chrono::TimeDelta::days(days);
+    let start = day.format("%Y%m%dT090000Z");
+    let end = day.format("%Y%m%dT100000Z");
+    format!(
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//capycal test//EN\nBEGIN:VEVENT\nUID:{uid}\n\
+         DTSTAMP:20240101T000000Z\nDTSTART:{start}\nDTEND:{end}\nSUMMARY:{uid}\n{extra}\
+         END:VEVENT\nEND:VCALENDAR\n"
+    )
+}
+
+#[tokio::test]
+#[ignore = "needs a CalDAV server, run `make test-caldav`"]
+async fn test_window_limits_a_caldav_source() {
+    let setup = Setup::new(
+        "window",
+        "all_events = false\ndays_past = 1\ndays_future = 30",
+    )
+    .await;
+    setup.put("soon.ics", &event_in("soon", 1, "")).await;
+    setup.put("later.ics", &event_in("later", 60, "")).await;
+    setup.put("past.ics", &event_in("past", -10, "")).await;
+    let series = event_in("series", -365, "RRULE:FREQ=WEEKLY\n");
+    setup.put("series.ics", &series).await;
+    setup.sync();
+    let copied = origins(&setup.server, &setup.sink).await;
+    assert_eq!(copied, ["source/series", "source/soon"]);
+
+    // A wider window copies the later event with the next (full) sync
+    setup.edit_config("days_future = 30", "days_future = 90");
+    setup.sync();
+    let copied = origins(&setup.server, &setup.sink).await;
+    assert_eq!(copied, ["source/later", "source/series", "source/soon"]);
+    setup.cleanup().await;
+}

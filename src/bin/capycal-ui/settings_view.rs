@@ -999,9 +999,9 @@ impl SettingsScreen {
         let calendar = self.settings.calendar(&key)?.clone();
         let mut sync = capycal::SyncConfig::new("preview", &key, form.target());
         if let Ok(built) = form.build(&[]) {
-            sync.eventkit_days_past = built.eventkit_days_past;
-            sync.eventkit_days_future = built.eventkit_days_future;
-            sync.eventkit_all_events = built.eventkit_all_events;
+            sync.days_past = built.days_past;
+            sync.days_future = built.days_future;
+            sync.all_events = built.all_events;
         }
         self.next_event = Some((key, None));
         Some(Command::NextSourceEvent { calendar, sync })

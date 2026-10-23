@@ -1,9 +1,10 @@
 //! Brings a config file written by an older Capycal up to the current
 //! version, one step per version, keeping comments and order.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use toml_edit::{DocumentMut, Item, TableLike, value};
+use toml_edit::{DocumentMut, Item, Key, TableLike, value};
 
 use crate::config_edit::{max_position, table_at};
 use tracing::{info, warn};
@@ -75,14 +76,73 @@ pub(crate) fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
     }
 }
 
-/// 0.3.0: a full sync runs once a day instead of every `full_sync_interval`.
+/// The window of a Calendar.app source applies to every source in 0.3.0.
+const WINDOW_KEYS: [(&str, &str); 3] = [
+    ("eventkit_days_past", "days_past"),
+    ("eventkit_days_future", "days_future"),
+    ("eventkit_all_events", "all_events"),
+];
+
+/// 0.3.0: a full sync runs once a day instead of every `full_sync_interval`;
+/// the `eventkit_*` window keys are generic.
 fn v1_to_v2(doc: &mut DocumentMut, notes: &mut Vec<String>) {
+    let eventkit: HashSet<String> = doc
+        .get("calendars")
+        .and_then(Item::as_table_like)
+        .map(|calendars| {
+            calendars
+                .iter()
+                .filter(|(_, c)| c.get("eventkit_calendar").is_some())
+                .map(|(name, _)| name.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
     for (name, sync) in syncs(doc) {
         if sync.remove("full_sync_interval").is_some() {
             notes.push(format!(
                 "sync '{name}': removed full_sync_interval, Capycal now runs a full sync once a day"
             ));
         }
+        // Without Calendar.app they did nothing; kept they would turn the window on
+        let from_eventkit = sync
+            .get("source")
+            .and_then(Item::as_str)
+            .is_some_and(|source| eventkit.contains(source));
+        for (old, new) in WINDOW_KEYS {
+            if !sync.contains_key(old) {
+                continue;
+            }
+            if from_eventkit {
+                rename(sync, old, new);
+                notes.push(format!("sync '{name}': renamed {old} to {new}"));
+            } else {
+                sync.remove(old);
+                notes.push(format!(
+                    "sync '{name}': removed {old} (only used for Calendar.app sources)"
+                ));
+            }
+        }
+    }
+}
+
+/// Rename the key `old` in place, keeping its comments and position.
+fn rename(table: &mut dyn TableLike, old: &str, new: &str) {
+    let names: Vec<String> = table.iter().map(|(name, _)| name.to_string()).collect();
+    let entries: Vec<(Key, Item)> = names
+        .iter()
+        .filter_map(|name| {
+            let (key, item) = table.get_key_value(name)?;
+            let key = if name == old {
+                Key::new(new).with_leaf_decor(key.leaf_decor().clone())
+            } else {
+                key.clone()
+            };
+            Some((key, item.clone()))
+        })
+        .collect();
+    table.clear();
+    for (key, item) in entries {
+        table.entry_format(&key).or_insert(item);
     }
 }
 
@@ -214,6 +274,35 @@ mod tests {
             out,
             "version = 2\n\n[syncs.a]\nsource = \"x\"\n# keep me\nenabled = false\n\n\
              [syncs.b]\nsource = \"y\"\n"
+        );
+    }
+
+    #[test]
+    fn test_window_keys_renamed_for_calendar_app() {
+        let (notes, out) = run(
+            "[calendars.mac]\neventkit_calendar = \"Home\"\n\n[calendars.dav]\nurl = \"u\"\n\n\
+             [syncs.a]\nsource = \"mac\"\n# how far back\neventkit_days_past = 7 # a week\n\
+             target = \"dav\"\neventkit_all_events = true\n\n\
+             [syncs.b]\nsource = \"dav\"\neventkit_days_past = 7\neventkit_days_future = 9\n\n\
+             [syncs.c]\nsource = \"gone\"\neventkit_all_events = false\n",
+        );
+        let notes = notes.unwrap();
+        for note in [
+            "sync 'a': renamed eventkit_days_past to days_past",
+            "sync 'a': renamed eventkit_all_events to all_events",
+            "sync 'b': removed eventkit_days_past (only used for Calendar.app sources)",
+            "sync 'b': removed eventkit_days_future (only used for Calendar.app sources)",
+            "sync 'c': removed eventkit_all_events (only used for Calendar.app sources)",
+        ] {
+            assert!(notes.contains(&note.to_string()), "{note}: {notes:?}");
+        }
+        assert_eq!(
+            out,
+            "version = 2\n\n[calendars.mac]\neventkit_calendar = \"Home\"\n\n[calendars.dav]\nurl = \"u\"\n\n\
+             [syncs.a]\nsource = \"mac\"\n# how far back\ndays_past = 7 # a week\n\
+             target = \"dav\"\nall_events = true\n\n\
+             [syncs.b]\nsource = \"dav\"\n\n\
+             [syncs.c]\nsource = \"gone\"\n"
         );
     }
 

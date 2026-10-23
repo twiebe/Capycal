@@ -7,7 +7,7 @@ use toml_edit::{DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::config::{
     AccountConfig, CalendarConfig, ConditionConfig, Config, Credential, SyncConfig,
-    TransformConfig, default_eventkit_days_future, default_eventkit_days_past,
+    TransformConfig, default_days_future, default_days_past,
 };
 use crate::error::{Error, Result};
 
@@ -135,20 +135,14 @@ impl ConfigEditor {
         if !sync.fields.is_empty() {
             table.insert("fields", Item::Value(strings(&sync.fields)));
         }
-        if sync.eventkit_days_past != default_eventkit_days_past() {
-            table.insert(
-                "eventkit_days_past",
-                Item::Value((sync.eventkit_days_past as i64).into()),
-            );
+        if sync.days_past != default_days_past() {
+            table.insert("days_past", Item::Value((sync.days_past as i64).into()));
         }
-        if sync.eventkit_days_future != default_eventkit_days_future() {
-            table.insert(
-                "eventkit_days_future",
-                Item::Value((sync.eventkit_days_future as i64).into()),
-            );
+        if sync.days_future != default_days_future() {
+            table.insert("days_future", Item::Value((sync.days_future as i64).into()));
         }
-        if sync.eventkit_all_events {
-            table.insert("eventkit_all_events", Item::Value(true.into()));
+        if let Some(all) = sync.all_events {
+            table.insert("all_events", Item::Value(all.into()));
         }
         if !sync.transforms.is_empty() {
             let mut list = toml_edit::Array::new();
@@ -867,7 +861,8 @@ url = "https://work.example.com/home/"
         s.interval = Duration::from_secs(90 * 60);
         s.enabled = false;
         s.fields = vec!["SUMMARY".to_string(), "VALARM".to_string()];
-        s.eventkit_days_past = 7;
+        s.days_past = 7;
+        s.all_events = Some(false);
         s.transforms = vec![
             TransformConfig {
                 field: "SUMMARY".to_string(),
@@ -920,7 +915,7 @@ url = "https://work.example.com/home/"
         let text = editor.to_string();
         assert!(text.contains(
             "[syncs.\"b to ä\"]\nsource = \"a\"\ntarget = \"b\"\ninterval = \"1h 30m\"\nenabled = false\n\
-             fields = [\"SUMMARY\", \"VALARM\"]\neventkit_days_past = 7\n\
+             fields = [\"SUMMARY\", \"VALARM\"]\ndays_past = 7\nall_events = false\n\
              transforms = [\n\
              \x20 { field = \"SUMMARY\", action = \"set_field\", value = \"Busy ({{source_name}})\" },\n\
              \x20 { action = \"add_buffer\", pre_event = \"30m\", post_event = \"15m\" },\n\

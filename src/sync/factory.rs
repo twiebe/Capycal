@@ -135,9 +135,9 @@ pub fn build_source(config: &Config, sync: &SyncConfig) -> Result<AnySource> {
         #[cfg(target_os = "macos")]
         return Ok(AnySource::EventKit(crate::eventkit::EventKitClient::new(
             cal.eventkit_calendar.as_deref().unwrap(),
-            sync.eventkit_days_past,
-            sync.eventkit_days_future,
-            sync.eventkit_all_events,
+            sync.days_past,
+            sync.days_future,
+            sync.all_events(cal),
         )?));
         #[cfg(not(target_os = "macos"))]
         return Err(eventkit_unsupported());

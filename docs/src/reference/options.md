@@ -54,9 +54,9 @@ Each sync is a table named by its key, for example `[syncs.work-to-home]`. The n
 | `interval` | duration | required | Time between sync cycles |
 | `fields` | list of strings | `[]` | Content properties to copy, such as `"SUMMARY"`, `"LOCATION"`, `"DESCRIPTION"`; `"VALARM"` keeps alarm components. `DTSTART`, `DTEND`, `DURATION`, `RRULE`, `RDATE`, `EXDATE`, `STATUS`, `TRANSP`, `UID`, `DTSTAMP` and `RECURRENCE-ID` are always kept. See [`fields`](../concepts/syncs.md#fields) |
 | `enabled` | bool | `true` | `false` keeps the sync configured but stops it. See [Disabling a sync](../concepts/syncs.md#disabling-a-sync) |
-| `eventkit_days_past` | integer | `30` | Calendar.app source: days before now to query. Together with `eventkit_days_future` at most 1460 |
-| `eventkit_days_future` | integer | `365` | Calendar.app source: days after now to query |
-| `eventkit_all_events` | bool | `false` | Calendar.app source: query 20 years back and 4 years ahead in chunks |
+| `all_events` | bool | `true`, `false` for a Calendar.app source | Copy every source event; a Calendar.app source then reads 20 years back and 4 years ahead in chunks. See [Event window](../concepts/syncs.md#event-window) |
+| `days_past` | integer | `30` | Without `all_events`: days before now to copy. For a Calendar.app source at most 1460 together with `days_future` |
+| `days_future` | integer | `365` | Without `all_events`: days after now to copy |
 | `transforms` | list of tables | `[]` | Transforms, run in order. See [Transforms](#transforms) below |
 
 Details: [Syncs](../concepts/syncs.md).

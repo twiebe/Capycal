@@ -27,8 +27,8 @@ url = "https://cloud.example.org/remote.php/dav/calendars/alice/work-blockers/"
 source = "work"
 target = "nextcloud"
 interval = "5m"
-eventkit_days_past = 7
-eventkit_days_future = 180
+days_past = 7
+days_future = 180
 
 transforms = [
   { field = "SUMMARY", action = "set_field", value = "Busy ({{source_name}})" },

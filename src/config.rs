@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::ical::transform::{Action, Condition, Test, Transform};
+use crate::ical::window::Window;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -294,13 +295,15 @@ pub struct SyncConfig {
     pub fields: Vec<String>,
     #[serde(default)]
     pub transforms: Vec<TransformConfig>,
-    // EventKit source options (macOS only, but parsed on all platforms for config portability)
-    #[serde(default = "default_eventkit_days_past")]
-    pub eventkit_days_past: u64,
-    #[serde(default = "default_eventkit_days_future")]
-    pub eventkit_days_future: u64,
+    /// The window of source events copied, in days around now; only without
+    /// all events, see `SyncConfig::window`.
+    #[serde(default = "default_days_past")]
+    pub days_past: u64,
+    #[serde(default = "default_days_future")]
+    pub days_future: u64,
+    /// Unset: on for every source but Calendar.app.
     #[serde(default)]
-    pub eventkit_all_events: bool,
+    pub all_events: Option<bool>,
     /// A disabled sync is validated but not run.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -310,11 +313,11 @@ fn default_enabled() -> bool {
     true
 }
 
-pub(crate) fn default_eventkit_days_past() -> u64 {
+pub(crate) fn default_days_past() -> u64 {
     30
 }
 
-pub(crate) fn default_eventkit_days_future() -> u64 {
+pub(crate) fn default_days_future() -> u64 {
     365
 }
 
@@ -628,17 +631,14 @@ impl Config {
                     sync.name, sync.source
                 )));
             }
-            let window = sync
-                .eventkit_days_past
-                .saturating_add(sync.eventkit_days_future);
-            if self.calendars[&sync.source].is_eventkit()
-                && !sync.eventkit_all_events
-                && window > EVENTKIT_MAX_WINDOW_DAYS
+            let source = &self.calendars[&sync.source];
+            let window = sync.days_past.saturating_add(sync.days_future);
+            if source.is_eventkit() && !sync.all_events(source) && window > EVENTKIT_MAX_WINDOW_DAYS
             {
                 return Err(Error::Config(format!(
-                    "sync '{}': eventkit_days_past + eventkit_days_future is {window} days, but \
+                    "sync '{}': days_past + days_future is {window} days, but \
                      Calendar.app returns nothing for a query over about 4 years ({EVENTKIT_MAX_WINDOW_DAYS} days). \
-                     Use smaller values or set eventkit_all_events = true",
+                     Use smaller values or set all_events = true",
                     sync.name
                 )));
             }
@@ -699,11 +699,26 @@ impl SyncConfig {
             interval: Duration::from_secs(300),
             fields: Vec::new(),
             transforms: Vec::new(),
-            eventkit_days_past: default_eventkit_days_past(),
-            eventkit_days_future: default_eventkit_days_future(),
-            eventkit_all_events: false,
+            days_past: default_days_past(),
+            days_future: default_days_future(),
+            all_events: None,
             enabled: true,
         }
+    }
+
+    /// Whether the sync copies every source event: `all_events`, unset on
+    /// for every source but Calendar.app, which lists a series as single
+    /// occurrences.
+    pub fn all_events(&self, source: &CalendarConfig) -> bool {
+        self.all_events.unwrap_or(!source.is_eventkit())
+    }
+
+    /// The days around now the sync copies, None for all events.
+    pub fn window(&self, source: &CalendarConfig) -> Option<Window> {
+        (!self.all_events(source)).then_some(Window {
+            days_past: self.days_past,
+            days_future: self.days_future,
+        })
     }
 
     /// A key of everything besides the source events that shapes this sync's
@@ -736,8 +751,10 @@ impl SyncConfig {
             ),
             format!("fields={}", fields.join(",")),
             format!(
-                "eventkit={}|{}|{}",
-                self.eventkit_days_past, self.eventkit_days_future, self.eventkit_all_events
+                "window={}|{}|{}",
+                self.days_past,
+                self.days_future,
+                self.all_events(source)
             ),
         ];
         for t in &self.transforms {
@@ -2562,18 +2579,18 @@ account = "acc"
             .unwrap()
         };
 
-        let msg = config("eventkit_days_past = 1000\neventkit_days_future = 461\n")
+        let msg = config("days_past = 1000\ndays_future = 461\n")
             .validate()
             .unwrap_err()
             .to_string();
         assert!(msg.contains("1461 days"), "{msg}");
-        assert!(msg.contains("eventkit_all_events = true"), "{msg}");
+        assert!(msg.contains("all_events = true"), "{msg}");
 
         // Within the limit or chunked, the check passes (on Linux the
         // EventKit calendar itself is rejected afterwards)
         for options in [
-            "eventkit_days_past = 1000\neventkit_days_future = 460\n",
-            "eventkit_days_past = 5000\neventkit_all_events = true\n",
+            "days_past = 1000\ndays_future = 460\n",
+            "days_past = 5000\nall_events = true\n",
         ] {
             let result = config(options).validate();
             if cfg!(target_os = "macos") {
@@ -2584,10 +2601,44 @@ account = "acc"
             }
         }
 
-        // The window of a CalDAV source does not matter
-        let caldav: Config =
-            toml::from_str(&format!("{TWO_CALENDARS}{SYNC}eventkit_days_past = 5000\n")).unwrap();
-        assert!(caldav.validate().is_ok());
+        // The Calendar.app limit does not apply to a CalDAV source
+        for options in [
+            "days_past = 5000\n",
+            "days_past = 5000\nall_events = false\n",
+        ] {
+            let caldav: Config =
+                toml::from_str(&format!("{TWO_CALENDARS}{SYNC}{options}")).unwrap();
+            assert!(caldav.validate().is_ok(), "{options}");
+        }
+    }
+
+    #[test]
+    fn test_all_events_default_follows_the_source() {
+        let caldav: CalendarConfig = toml::from_str("account = \"acc\"\nurl = \"u\"").unwrap();
+        let mac: CalendarConfig = toml::from_str("eventkit_calendar = \"Home\"").unwrap();
+        let feed: CalendarConfig = toml::from_str("ics_url = \"https://x/f.ics\"").unwrap();
+        let mut sync = SyncConfig::new("s", "a", "b");
+        assert!(sync.all_events(&caldav) && sync.all_events(&feed));
+        assert!(!sync.all_events(&mac));
+        assert_eq!(sync.window(&caldav), None);
+        assert_eq!(
+            sync.window(&mac),
+            Some(Window {
+                days_past: 30,
+                days_future: 365
+            })
+        );
+        sync.all_events = Some(false);
+        sync.days_past = 7;
+        assert_eq!(
+            sync.window(&caldav),
+            Some(Window {
+                days_past: 7,
+                days_future: 365
+            })
+        );
+        sync.all_events = Some(true);
+        assert_eq!(sync.window(&mac), None);
     }
 
     #[test]
@@ -2749,7 +2800,7 @@ password = "secret"
             sync("").output_key(&cal("https://x/a/"), &cal("https://x/other-target/")),
             retargeted.output_key(&cal("https://x/a/"), &cal("https://x/b/")),
             sync("").output_key(&cal("https://x/other/"), &cal("https://x/b/")),
-            sync("eventkit_days_past = 7").output_key(&cal("https://x/a/"), &cal("https://x/b/")),
+            sync("all_events = false").output_key(&cal("https://x/a/"), &cal("https://x/b/")),
             sync(
                 "transforms = [{ field = \"SUMMARY\", action = \"set_field\", value = \"Busy\" }]",
             )
@@ -2827,8 +2878,9 @@ password = "secret"
             toml::from_str("source = \"a\"\ntarget = \"b\"\ninterval = \"5m\"\n").unwrap();
         assert_eq!(sync.name, "s");
         assert_eq!(sync.interval, parsed.interval);
-        assert_eq!(sync.eventkit_days_past, parsed.eventkit_days_past);
-        assert_eq!(sync.eventkit_days_future, parsed.eventkit_days_future);
+        assert_eq!(sync.days_past, parsed.days_past);
+        assert_eq!(sync.days_future, parsed.days_future);
+        assert_eq!(sync.all_events, parsed.all_events);
         assert!(sync.enabled && sync.fields.is_empty() && sync.transforms.is_empty());
 
         let t = TransformConfig::new(TransformAction::AddAlarm);
@@ -2854,10 +2906,10 @@ password = "secret"
             toml::from_str(&format!("account = \"acc\"\nurl = \"{url}\"")).unwrap()
         };
         // A changed key full-syncs every sync after an upgrade: change the
-        // key's text only on purpose
+        // key's text only on purpose (0.3.0: the window line)
         assert_eq!(
             sync.output_key(&cal("https://x/a/"), &cal("https://x/b/")),
-            "9a25d1f7-ed04-5ff8-b2c7-fdd5da11ac83"
+            "8eac9f6e-ae61-5a88-9762-eb5add8a5891"
         );
         sync.transforms[0].when = vec![ConditionConfig {
             field: "LOCATION".into(),
@@ -2867,7 +2919,7 @@ password = "secret"
         }];
         assert_eq!(
             sync.output_key(&cal("https://x/a/"), &cal("https://x/b/")),
-            "06f6f50a-335e-5193-b278-2fa1a54116b6"
+            "768f47de-c77f-558c-9d4d-72c1a8586c2a"
         );
     }
 }

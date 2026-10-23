@@ -13,6 +13,7 @@ use tracing::{error, info, warn};
 
 use crate::config::{Config, SyncConfig};
 use crate::error::{Error, Result};
+use crate::ical::window::Window;
 use crate::state::StateStore;
 use crate::state::store::FsStateStore;
 use crate::sync::factory::{AnySink, AnySource, build_sink, build_source};
@@ -78,7 +79,8 @@ fn build_runner(
         None => EVENTKIT_SOURCE_URL,
     };
     let output_key = sync_config.output_key(source_cal, target_cal);
-    let settings = runner_settings(sync_config, source_url, output_key)?;
+    let window = sync_config.window(source_cal);
+    let settings = runner_settings(sync_config, source_url, output_key, window)?;
     let sink_sem = semaphores
         .get(&sync_config.target)
         .cloned()
@@ -424,6 +426,7 @@ fn runner_settings(
     sync_config: &SyncConfig,
     source_url: &str,
     output_key: String,
+    window: Option<Window>,
 ) -> Result<RunnerSettings> {
     Ok(RunnerSettings {
         name: sync_config.name.clone(),
@@ -434,6 +437,7 @@ fn runner_settings(
         transforms: sync_config.compile_transforms()?,
         interval: sync_config.interval,
         time_zone: crate::ical::transform::local_tz(),
+        window,
         output_key,
     })
 }
@@ -515,7 +519,8 @@ action = "set_field"
 value = "Busy"
 "#,
         );
-        let settings = runner_settings(&cfg, "https://example.com/work/", "k".to_string()).unwrap();
+        let settings =
+            runner_settings(&cfg, "https://example.com/work/", "k".to_string(), None).unwrap();
         assert_eq!(settings.name, "work-to-personal");
         assert_eq!(settings.source_name, "work");
         assert_eq!(settings.sink_name, "personal");
@@ -536,7 +541,7 @@ action = "replace_field_regex"
 pattern = "("
 "#,
         );
-        assert!(runner_settings(&cfg, "https://example.com/work/", "k".to_string()).is_err());
+        assert!(runner_settings(&cfg, "https://example.com/work/", "k".to_string(), None).is_err());
     }
 
     use std::path::{Path, PathBuf};

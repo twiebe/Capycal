@@ -2,6 +2,7 @@ pub mod filter;
 pub mod marker;
 pub mod timezone;
 pub mod transform;
+pub mod window;
 
 use std::collections::HashSet;
 

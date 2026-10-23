@@ -92,13 +92,14 @@ version = 2
 # fields = ["SUMMARY", "LOCATION"]
 ## Keep the sync in the config but stop it
 # enabled = true
-## Calendar.app sources only: the queried window around today. Past plus
-## future must be at most 1460 days, since Calendar.app returns nothing for a
-## longer single query. eventkit_all_events queries 20 years back and 4 ahead
-## in chunks instead.
-# eventkit_days_past = 30
-# eventkit_days_future = 365
-# eventkit_all_events = false
+## Copy only the source events of these days around today. all_events is on
+## by default, but for Calendar.app sources, which have a window of 30 days
+## back and 365 ahead. A recurring event is copied as a whole series if it
+## might have an occurrence in the window. For Calendar.app, past plus future
+## must be at most 1460 days; all_events reads 20 years back and 4 ahead.
+# all_events = false
+# days_past = 30
+# days_future = 365
 ## Transforms change the copied events and run in order. Placeholders in
 ## value and replacement: {{source_name}}, {{source_url}}, {{sync_name}}.
 # transforms = [

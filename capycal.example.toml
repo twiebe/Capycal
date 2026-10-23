@@ -70,6 +70,11 @@ interval = "5m"
 # fields = ["LOCATION", "VALARM"]
 # Keep the sync in the config but stop it (default: true)
 # enabled = false
+# Copy only the source events from 30 days back to 365 ahead. A recurring event
+# is copied as a whole series if it might have an occurrence in this range.
+# all_events = false  # default: true, but false for a Calendar.app source
+# days_past = 30      # default: 30
+# days_future = 365   # default: 365
 
 # Transforms are applied in order to the synced event. Write them as a list
 # inside the sync's table, one transform per line.
@@ -131,8 +136,9 @@ transforms = [
 # source = "work_mac"
 # target = "work_blockers"
 # interval = "5m"
-# eventkit_days_past = 30      # how far back to query (default: 30)
-# eventkit_days_future = 365   # how far ahead to query (default: 365)
+# days_past = 30      # how far back to read (default: 30)
+# days_future = 365   # how far ahead to read (default: 365)
 # past + future must be at most 1460 days: Calendar.app returns nothing for a
-# single query over about 4 years. For more, use eventkit_all_events instead.
-# eventkit_all_events = false   # query 20 years back and 4 ahead in chunks (default: false)
+# single query over about 4 years. For more, use all_events instead.
+# all_events = false   # read 20 years back and 4 ahead in chunks (default: false
+#                      # for Calendar.app, true for CalDAV calendars and feeds)

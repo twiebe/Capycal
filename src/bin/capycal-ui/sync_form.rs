@@ -120,9 +120,9 @@ impl SyncForm {
             source: sync.source.clone(),
             target: sync.target.clone(),
             interval: duration_text(sync.interval),
-            days_past: sync.eventkit_days_past.to_string(),
-            days_future: sync.eventkit_days_future.to_string(),
-            all_events: sync.eventkit_all_events,
+            days_past: sync.days_past.to_string(),
+            days_future: sync.days_future.to_string(),
+            all_events: sync.all_events.unwrap_or(false),
             enabled: sync.enabled,
             concurrency: DEFAULT_CONCURRENCY.to_string(),
             saved_concurrency: DEFAULT_CONCURRENCY,
@@ -396,9 +396,9 @@ impl SyncForm {
                 .iter()
                 .map(|t| t.transform.clone())
                 .collect(),
-            eventkit_days_past: days(&self.days_past),
-            eventkit_days_future: days(&self.days_future),
-            eventkit_all_events: self.all_events,
+            days_past: days(&self.days_past),
+            days_future: days(&self.days_future),
+            all_events: self.all_events.then_some(true),
             enabled: self.enabled,
         };
         sync.compile_transforms().map_err(|e| {

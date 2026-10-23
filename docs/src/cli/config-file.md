@@ -49,7 +49,7 @@ What each part means, with its place in the desktop app: [Calendars and accounts
 
 - every `[daemon]` option with its default,
 - a CalDAV calendar with the three credential forms and a Calendar.app calendar with the accepted naming forms,
-- a complete sync, including what `fields` keeps and the Calendar.app query window,
+- a complete sync, including what `fields` keeps and the event window,
 - one example of every transform action.
 
 Lines starting with `##` explain, lines starting with `# ` are settings: remove the `# ` to use one. The CLI refuses to run the starter config as it is, since it has no syncs.
@@ -77,7 +77,7 @@ capycal --validate            # default config
 capycal --validate -c my.toml
 ```
 
-This checks the TOML, unknown keys, required options, calendar references, durations, regexes, days, times, placeholders and the [Calendar.app query window](../concepts/syncs.md#calendarapp-query-window). A config without syncs is reported as valid, but `--validate` exits with code 1, since the CLI could not run it. It does not resolve credentials or contact a server; use `capycal --once -v` for that.
+This checks the TOML, unknown keys, required options, calendar references, durations, regexes, days, times, placeholders and the [event window](../concepts/syncs.md#event-window). A config without syncs is reported as valid, but `--validate` exits with code 1, since the CLI could not run it. It does not resolve credentials or contact a server; use `capycal --once -v` for that.
 
 ## Daemon settings
 

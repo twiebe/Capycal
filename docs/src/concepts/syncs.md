@@ -19,9 +19,9 @@ interval = "5m"
 | `interval` | yes | Time between cycles, e.g. `"30s"`, `"5m"`, `"1h"` |
 | `fields` | no | Content properties to copy on top of time, recurrence and availability (allow-list), default none |
 | `transforms` | no | List of [transforms](transforms.md), applied in order |
-| `eventkit_days_past` | no | See [Calendar.app query window](#calendarapp-query-window) |
-| `eventkit_days_future` | no | See below |
-| `eventkit_all_events` | no | See below |
+| `all_events` | no | See [Event window](#event-window) |
+| `days_past` | no | See below |
+| `days_future` | no | See below |
 
 ## Name
 
@@ -70,27 +70,32 @@ For each new or changed source event, every cycle:
 3. Time, recurrence, status and availability (`DTSTART`, `DTEND`, `DURATION`, `RRULE`, `RDATE`, `EXDATE`, `STATUS`, `TRANSP`), `UID`, `DTSTAMP`, `RECURRENCE-ID`, the properties in `fields` and those a `set_field` set in this event are kept. Timezone definitions referenced by the kept properties are carried over. Alarms of `add_alarm` are added after this step.
 4. Capycal adds its markers, replaces the UID with one derived from the sync name and the source UID, and writes the event to the target.
 
-When a source event is deleted (or, for Calendar.app sources, leaves the query window), its copy in the target is deleted too.
+When a source event is deleted or leaves the [event window](#event-window), its copy in the target is deleted too.
 
 Changing `fields` or transforms only affects events that change afterwards, until the next automatic full sync. To apply the new rules to all events now, run a [full sync](full-sync.md).
 
-## Calendar.app query window
+## Event window
 
-> **In the app:** **Calendar.app events** under Advanced settings: the days back and ahead, or **All events**.
+> **In the app:** **Events** in the From step: **All**, or **Range** with the days back and ahead.
 
-A Calendar.app source has no change log, so Capycal queries a time window every cycle:
+A sync can copy only the source events around today:
 
 | Key | Default | Description |
 |---|---|---|
-| `eventkit_days_past` | `30` | Days before now to include |
-| `eventkit_days_future` | `365` | Days after now to include |
-| `eventkit_all_events` | `false` | Query 20 years back and 4 years ahead in chunks, ignoring the two options above |
+| `all_events` | `true`, `false` for a Calendar.app source | Copy every source event, ignoring the two options below |
+| `days_past` | `30` | Days before now to include |
+| `days_future` | `365` | Days after now to include |
 
-The options are set on the sync and only apply when its source is a Calendar.app calendar. They are accepted on Linux too, so a config stays portable.
+An event is in the window when its time overlaps it. A recurring event is copied as a whole series if it might have an occurrence in the window: it starts before the window ends and its `RRULE` does not end (`UNTIL`) before the window starts. A series without an end, or with `COUNT` or `RDATE`, counts as running on, so a yearly event that started years ago is copied even when none of its occurrences falls into a short window. Times in a time zone count as UTC and the window is a day wider on each side, so no event at the edge is lost.
 
-Events that leave the window (older than `eventkit_days_past`) count as removed and their blockers are deleted from the target.
+Events that leave the window count as removed and their copies are deleted from the target. Events that enter it, as the window moves on with today, are copied. A CalDAV source or a feed reports only events that changed, so both happen with the daily [full sync](full-sync.md); a Calendar.app source is read in full every cycle, so there they happen at once.
 
-`eventkit_days_past + eventkit_days_future` must be at most 1460 days: Calendar.app returns nothing for a single query over about four years, so a larger window is rejected as a config error. Use smaller values, or `eventkit_all_events = true`, which splits its range into several queries and is not limited by this.
+How a source applies the window:
+
+- **Calendar.app** has no change log, so Capycal queries the window every cycle. That is why it has a window by default: Calendar.app lists a recurring event as single occurrences, which for all events would be thousands. `days_past + days_future` must be at most 1460 days: Calendar.app returns nothing for a single query over about four years, so a larger window is rejected as a config error. Use smaller values, or `all_events = true`, which reads 20 years back and 4 years ahead in several queries.
+- **CalDAV calendars and feeds** are read in full and the events outside the window are left out. There is no limit on the window.
+
+Versions before 0.3.0 had these options only for Calendar.app sources, as `eventkit_days_past`, `eventkit_days_future` and `eventkit_all_events`; the [config update](../cli/config-file.md#updates-of-the-config-file) renames them.
 
 ## Disabling a sync
 

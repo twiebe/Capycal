@@ -13,6 +13,7 @@ use crate::error::{Error, Result};
 use crate::ical;
 use crate::ical::marker;
 use crate::ical::transform::{Transform, TransformContext};
+use crate::ical::window::Window;
 use crate::source::{EventSink, EventSource, SinkEvent, SourceEvent};
 use crate::state::mapping::{SinkRecord, UidMapping};
 use crate::state::{StateStore, SyncState};
@@ -60,6 +61,8 @@ pub struct RunnerSettings {
     pub interval: Duration,
     /// A full sync runs on the first cycle of each day in this zone.
     pub time_zone: chrono_tz::Tz,
+    /// Only source events in these days around now are copied.
+    pub window: Option<Window>,
     /// Changes when the config changes what the copies look like (opaque).
     pub output_key: String,
 }
@@ -93,6 +96,7 @@ pub struct SyncRunner<Src: EventSource, Snk: EventSink, St: StateStore> {
     transform_ctx: TransformContext,
     interval: Duration,
     time_zone: chrono_tz::Tz,
+    window: Option<Window>,
     output_key: String,
     sink_semaphore: Arc<Semaphore>,
     store: Arc<St>,
@@ -136,6 +140,7 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
             transform_ctx,
             interval: settings.interval,
             time_zone: settings.time_zone,
+            window: settings.window,
             output_key: settings.output_key,
             sink_semaphore,
             store,
@@ -835,6 +840,13 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
             return Ok(None);
         }
 
+        if let Some(window) = self.window
+            && !window.contains(&event.calendar_data, now)
+        {
+            debug!(href = %event.href, "event outside the sync window");
+            return Ok(None);
+        }
+
         let source_uid = ical::extract_uid(&event.calendar_data)
             .ok_or_else(|| Error::ICalParse(format!("no UID found in event at {}", event.href)))?;
 
@@ -1307,6 +1319,7 @@ mod tests {
             transforms,
             interval: Duration::from_secs(3600),
             time_zone: chrono_tz::UTC,
+            window: None,
             output_key: "k1".to_string(),
         }
     }
@@ -2562,6 +2575,78 @@ mod tests {
         assert_eq!(sink.log().deletes, vec![href("allday")]);
         assert!(r.state.uid_mapping.get("allday").is_none());
         assert_eq!(sink.log().puts.len(), 2);
+    }
+
+    const WINDOW: Window = Window {
+        days_past: 30,
+        days_future: 30,
+    };
+
+    /// 2026-01-05 12:00 UTC, the day of `event`
+    fn event_day() -> DateTime<Utc> {
+        DateTime::from_timestamp(1767614400, 0).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_events_outside_the_window_are_not_copied() {
+        let store = Arc::new(MemStore::default());
+        let sink = FakeSink::default();
+        let later = event_with_body("later", "v1", "DTSTART:20270105T090000Z");
+        let mut r = serial_runner(log_source(vec![event("e1", "v1"), later]), &store, &sink);
+        r.window = Some(WINDOW);
+        let (_tx, mut shutdown) = watch::channel(false);
+        let stats_ = r.cycle(event_day(), &mut shutdown, false).await.unwrap();
+        assert_eq!(stats_, stats(1, 0, 0, 0));
+        assert!(r.state.uid_mapping.get("later").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_full_sync_removes_events_that_left_the_window() {
+        let store = Arc::new(MemStore::default());
+        let sink = FakeSink::default();
+        let events = || {
+            vec![
+                event("e1", "v1"),
+                event_with_body("e2", "v1", "DTSTART:20260301T090000Z"),
+            ]
+        };
+        let mut r = serial_runner(log_source(events()), &store, &sink);
+        r.window = Some(WINDOW);
+        let (_tx, mut shutdown) = watch::channel(false);
+        let stats_ = r.cycle(event_day(), &mut shutdown, false).await.unwrap();
+        assert_eq!(stats_, stats(1, 0, 0, 0));
+        // Two months later e1 is past the window and e2 in it
+        let later = event_day() + chrono::TimeDelta::days(55);
+        let stats_ = r.cycle(later, &mut shutdown, true).await.unwrap();
+        assert_eq!(stats_, stats(1, 0, 1, 0));
+        assert_eq!(sink.log().deletes, vec![href("e1")]);
+        assert!(r.state.uid_mapping.get("e2").is_some());
+    }
+
+    /// Like a transform that now rejects them: the removal guard is for a
+    /// source that lost its events, not for a changed setting
+    #[tokio::test]
+    async fn test_narrowing_the_window_removes_at_once() {
+        let store = Arc::new(MemStore::default());
+        let sink = FakeSink::default();
+        let events = || {
+            (1..=6)
+                .map(|i| event(&format!("e{i}"), "v1"))
+                .collect::<Vec<_>>()
+        };
+        let mut r = serial_runner(log_source(events()), &store, &sink);
+        let (_tx, mut shutdown) = watch::channel(false);
+        r.cycle(event_day(), &mut shutdown, false).await.unwrap();
+        assert_eq!(r.state.uid_mapping.len(), 6);
+
+        // A window that ends before the events
+        r.window = Some(WINDOW);
+        let later = event_day() + chrono::TimeDelta::days(60);
+        assert_eq!(
+            r.cycle(later, &mut shutdown, true).await.unwrap(),
+            stats(0, 0, 6, 0)
+        );
+        assert_eq!(r.state.uid_mapping.len(), 0);
     }
 
     #[tokio::test]

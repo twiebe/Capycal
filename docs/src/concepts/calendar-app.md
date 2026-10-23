@@ -35,9 +35,9 @@ A Calendar.app source delivers recurring events as individual occurrences, witho
 
 ### Query window
 
-There is no change log in EventKit, so every cycle queries a time window around now: by default 30 days back and 365 days ahead (`eventkit_days_past`, `eventkit_days_future` on the sync). Events leaving the window are removed from the target.
+There is no change log in EventKit, so every cycle queries a time window around now: by default 30 days back and 365 days ahead (`days_past`, `days_future` on the sync). Events leaving the window are removed from the target.
 
-EventKit returns nothing for a single query spanning more than about four years. Keep the sum of both options at or below 1460 days. `eventkit_all_events = true` instead queries 20 years back and 4 years ahead in four-year chunks. See [Syncs](syncs.md#calendarapp-query-window).
+EventKit returns nothing for a single query spanning more than about four years. Keep the sum of both options at or below 1460 days. `all_events = true` instead queries 20 years back and 4 years ahead in four-year chunks. See [Event window](syncs.md#event-window).
 
 ### Timezones and all-day events
 
