@@ -249,6 +249,13 @@ jobs:
             --notes-file "$RUNNER_TEMP/notes.md" \
             --generate-notes \
             --verify-tag
+      # The Pages workflow of the website rebuilds the APT and RPM repositories
+      # from the newest releases
+      - name: Update the package repositories
+        if: env.WEBSITE_DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.WEBSITE_DISPATCH_TOKEN }}
+        run: gh api repos/twiebe/capycal-web/dispatches -f event_type=release
       - name: Update the Homebrew tap
         if: env.HOMEBREW_TAP_TOKEN != ''
         run: |
@@ -265,13 +272,6 @@ jobs:
       - name: Update the AUR packages
         if: env.AUR_SSH_KEY != ''
         run: packaging/linux/aur/publish.sh dist
-      # The Pages workflow of the website rebuilds the APT and RPM repositories
-      # from the newest releases
-      - name: Update the package repositories
-        if: env.WEBSITE_DISPATCH_TOKEN != ''
-        env:
-          GH_TOKEN: ${{ env.WEBSITE_DISPATCH_TOKEN }}
-        run: gh api repos/twiebe/capycal-web/dispatches -f event_type=release
 
   # Once the release is out, its Linux binaries become the container image
   image:

@@ -62,14 +62,14 @@ sudo apt update
 sudo apt install capycal        # or capycal-app
 ```
 
-Fedora, RHEL and their derivatives:
+Fedora, RHEL and their derivatives (the desktop app needs RHEL 10):
 
 ```bash
 sudo curl -fsSLo /etc/yum.repos.d/capycal.repo https://capycal.app/packages/rpm/capycal.repo
 sudo dnf install capycal        # or capycal-app
 ```
 
-On openSUSE, put `capycal.repo` into `/etc/zypp/repos.d/` and install with `zypper install`. The repositories keep the newest three releases; the rpms themselves are downloaded from the GitHub releases, checked against the signed repository metadata.
+The repositories keep the newest three releases; the rpms themselves are downloaded from the GitHub releases, checked against the signed repository metadata.
 
 Without a repository, install a package from the [releases page](https://github.com/twiebe/capycal/releases) directly; it is not updated then:
 

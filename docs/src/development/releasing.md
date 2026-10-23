@@ -28,17 +28,18 @@ The workflow:
 
 capycal.app/packages carries an APT repository (`apt/`) and an RPM repository (`rpm/`) with the `.deb` and `.rpm` files of the newest three releases. The Pages workflow of `twiebe/capycal-web` builds them on every run, from the GitHub releases (`scripts/fetch-releases.sh`, `scripts/build-repos.sh`), so nothing is stored in git; the debs are copied into the site, the RPM metadata points at the release downloads. `make test-repos` there builds them with a throwaway key and installs from them in Debian, Ubuntu and Fedora containers.
 
-Both are signed with a key of their own, kept as the secret `PACKAGES_GPG_KEY` of `twiebe/capycal-web`; without it the site goes out without `packages/`. To create it (again, before it expires):
+Both are signed with a key of their own, kept as the secret `PACKAGES_GPG_KEY` of `twiebe/capycal-web`; without it the site goes out without `packages/`. To create it:
 
 ```bash
 export GNUPGHOME=$(mktemp -d)
-gpg --batch --passphrase '' --quick-gen-key "Capycal Packages <packages@capycal.app>" rsa4096 sign 3y
+gpg --batch --passphrase '' --quick-gen-key "Capycal Packages <packages@capycal.app>" rsa4096 sign never
 gpg --armor --export-secret-keys | gh secret set PACKAGES_GPG_KEY -R twiebe/capycal-web
 gpg --armor --export-secret-keys > capycal-packages.key   # keep offline
 gpg --fingerprint
+rm -rf "$GNUPGHOME"
 ```
 
-Users fetch the public key from the site, so a new key reaches them with the next `curl` of the install steps; anyone who installed before has to fetch it again. Extend the expiry of the existing key instead (`gpg --quick-set-expire <fingerprint> 3y`, then set the secret again) to spare them that.
+The key does not expire: apt and dnf check against the copy users fetched when they set up the repository and never fetch it again, so an expiry date, even one extended later on the server, would break every installation once it passes. Replace the key only if it leaks; everyone then has to fetch the new one.
 
 A manual run (`workflow_dispatch`) builds and uploads the artifacts without publishing anything.
 
