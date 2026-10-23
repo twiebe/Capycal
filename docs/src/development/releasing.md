@@ -20,7 +20,7 @@ The workflow:
 - builds the Linux desktop app as `capycal-app` `.deb` and `.rpm` for x86_64 and arm64;
 - writes a `.sha256` file per archive, the AUR PKGBUILDs and the Homebrew formula and cask;
 - publishes a GitHub release with generated notes;
-- builds the container image for linux/amd64 and linux/arm64 from the musl binaries and pushes it to `ghcr.io/twiebe/capycal` as `<version>`, `<major>.<minor>` and `latest`. The first push creates the package as private: make it public once under the package's settings on GitHub (Package settings > Change visibility);
+- once the release is published, builds the container image for linux/amd64 and linux/arm64 from its musl tarballs (`image.yml`) and pushes it to `ghcr.io/twiebe/capycal` as `<version>`, `<major>.<minor>` and `latest`. The first push creates the package as private: make it public once under the package's settings on GitHub (Package settings > Change visibility);
 - with `HOMEBREW_TAP_TOKEN` commits the formula and cask to `twiebe/homebrew-capycal`, with `AUR_SSH_KEY` pushes `capycal-bin` and `capycal-app-bin` to the AUR.
 
 A manual run (`workflow_dispatch`) builds and uploads the artifacts without publishing anything.
@@ -30,4 +30,5 @@ A manual run (`workflow_dispatch`) builds and uploads the artifacts without publ
 | Workflow | Trigger | Does |
 |---|---|---|
 | `ci.yml` | push to `main`, pull requests | fmt, clippy and tests on Linux and macOS, with and without `ui` |
+| `image.yml` | called by `release.yml`, manual with a release tag | builds and pushes the container image of a published release |
 | `docs.yml` | push to `main` or pull request changing `docs/`, manual | builds this book; on `main` it asks `twiebe/capycal-web` to publish it on capycal.app/docs |

@@ -1,7 +1,7 @@
 # The image published as ghcr.io/twiebe/capycal: the static musl binaries of
 # the release on distroless (CA certificates, time zones, the nonroot user).
-# The context holds <arch>/capycal and the notices, as the release job
-# stages them in dist/image:
+# The context holds <arch>/capycal and the notices, as image.yml stages
+# them in dist/image:
 #   docker buildx build --platform linux/amd64,linux/arm64 -f packaging/docker/Dockerfile dist/image
 
 # distroless has no shell, so the state directory is made here
