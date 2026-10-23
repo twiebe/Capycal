@@ -515,18 +515,14 @@ pub enum Preset {
     /// Only the time, titled "Busy".
     Busy,
     Title,
-    Everything,
+    /// Title, notes, location and reminders: what Keep's third preset keeps.
+    Details,
     /// Nothing filled in, switched off until it is set up.
     Custom,
 }
 
 impl Preset {
-    const ALL: [Preset; 4] = [
-        Preset::Busy,
-        Preset::Title,
-        Preset::Everything,
-        Preset::Custom,
-    ];
+    const ALL: [Preset; 4] = [Preset::Busy, Preset::Title, Preset::Details, Preset::Custom];
 
     /// What a "Busy" copy of an event from `source` is called.
     fn busy(source: &str) -> String {
@@ -550,8 +546,8 @@ impl Preset {
                 "Team meeting",
                 "",
             ),
-            Preset::Everything => (
-                "Everything",
+            Preset::Details => (
+                "Title and details",
                 "Title, notes, location and reminders.",
                 "Team meeting",
                 "Room 3, reminder 10 minutes before",
@@ -583,9 +579,9 @@ impl Preset {
     /// `sync` with this preset; `source` names the source calendar.
     pub fn apply(self, mut sync: capycal::SyncConfig, source: &str) -> capycal::SyncConfig {
         let fields: &[&str] = match self {
-            Preset::Busy | Preset::Custom => &[],
-            Preset::Title => &["SUMMARY"],
-            Preset::Everything => &["SUMMARY", "DESCRIPTION", "LOCATION", "VALARM"],
+            Preset::Busy | Preset::Custom => COPY_PRESETS[0].1,
+            Preset::Title => COPY_PRESETS[1].1,
+            Preset::Details => COPY_PRESETS[2].1,
         };
         sync.fields = fields.iter().map(|f| f.to_string()).collect();
         if self == Preset::Busy {
@@ -6419,7 +6415,7 @@ url = "https://x/b/"
         assert!(busy.fields.is_empty());
         assert_eq!(busy.transforms[0].value.as_deref(), Some("Busy (Work)"));
         assert!(busy.enabled);
-        let all = Preset::Everything.apply(capycal::SyncConfig::new("s", "a", "b"), "Work");
+        let all = Preset::Details.apply(capycal::SyncConfig::new("s", "a", "b"), "Work");
         assert_eq!(all.fields, ["SUMMARY", "DESCRIPTION", "LOCATION", "VALARM"]);
         // Custom: nothing filled in, and off until it is set up
         let custom = Preset::Custom.apply(capycal::SyncConfig::new("s", "a", "b"), "Work");
