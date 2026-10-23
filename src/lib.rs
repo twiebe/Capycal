@@ -28,6 +28,7 @@ pub use config::{
     SyncConfig, TransformAction, TransformConfig, calendar_key, default_config_path,
 };
 pub use config_edit::{ConfigEditor, duration_text};
+pub use config_migrate::ConfigUpdate;
 pub use config_watch::ConfigWatcher;
 pub use error::{Error, Result};
 pub use eventkit::{CalendarInfo, list_calendars as list_eventkit_calendars};

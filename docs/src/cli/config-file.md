@@ -142,7 +142,7 @@ Removing a sync from the config stops it but leaves its events in the target and
 
 ## Updates of the config file
 
-The file starts with `version = 2`, the format it is written in. When an update of Capycal changes the format, for example renames an option, Capycal updates the file the first time it loads it: at start, and on every reload. Before it writes the new file, it keeps the old one next to it as `capycal.toml.<date>-<time>.bak` (for example `capycal.toml.20261023-142501.bak`), with the same permissions, and logs every change it made. To go back to an older Capycal, put the backup back in place.
+The file starts with `version = 2`, the format it is written in. When an update of Capycal changes the format, for example renames an option, Capycal updates the file the first time it loads it to run: at start of the daemon, `--once`, `--full-sync`, `--purge` and the desktop app, and on every reload. `--validate` and `--status` only read: they check the updated config in memory and leave the file as it is. Before it writes the new file, it keeps the old one next to it as `capycal.toml.<date>-<time>.bak` (for example `capycal.toml.20261023-142501.bak`), with the same permissions, and logs every change it made. To go back to an older Capycal, put the backup back in place.
 
 A file without `version` is version 1. A file with a higher version than Capycal knows was written by a newer Capycal; Capycal refuses it and asks to be updated.
 

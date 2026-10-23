@@ -16,6 +16,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::config::{self, Config, LogFormat};
+use crate::config_migrate::ConfigUpdate;
 use crate::logging::{self, LogLevel};
 use crate::state::lock::ConfigLock;
 
@@ -159,23 +160,28 @@ async fn dispatch(cli: Cli) -> CliResult {
         return generate::write_starter_config(&config_path);
     }
 
-    let config = load_config(&config_path, cli.config.is_some())?;
+    let (config, update) = load_config(&config_path, cli.config.is_some())?;
     let log_level = init_logging(&config, cli.log_level());
-    run_config(&cli, config, &config_path, log_level).await
+    run_config(&cli, config, update, &config_path, log_level).await
 }
 
 /// The commands that need a loaded config, once logging is set up.
 async fn run_config(
     cli: &Cli,
     mut config: Config,
+    update: Option<ConfigUpdate>,
     config_path: &Path,
     log_level: LogLevel,
 ) -> CliResult {
+    // Looking at a config never changes it
     if cli.validate {
         return validate(&config, config_path);
     }
     if cli.status {
         return status::status(&config, config_path);
+    }
+    if let Some(update) = update {
+        update.write();
     }
     if cli.install_service {
         require_syncs(&config, config_path)?;
@@ -277,8 +283,11 @@ impl From<crate::error::Error> for CliError {
 pub(crate) type CliResult = std::result::Result<(), CliError>;
 
 /// Load the config, adding hints when the default path was used.
-fn load_config(path: &Path, explicit: bool) -> std::result::Result<Config, CliError> {
-    Config::load(path).map_err(|e| {
+fn load_config(
+    path: &Path,
+    explicit: bool,
+) -> std::result::Result<(Config, Option<ConfigUpdate>), CliError> {
+    Config::read(path).map_err(|e| {
         let mut message = format!("error: {e}");
         // The hints only help when the default config doesn't exist yet
         if !explicit && !path.exists() {
@@ -537,6 +546,37 @@ fields = ["DTSTART"]
     }
 
     #[tokio::test]
+    async fn test_only_running_commands_update_an_old_config() {
+        let dir = state_dir("old-config");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("capycal.toml");
+        let old = format!(
+            "[daemon]\nstate_dir = \"{}\"\n",
+            dir.join("state").display()
+        );
+        std::fs::write(&path, &old).unwrap();
+        let run = |args: &'static [&'static str]| {
+            let path = path.clone();
+            async move {
+                let (cfg, update) = Config::read(&path).unwrap();
+                let cli = Cli::parse_from(args);
+                let _ = run_config(&cli, cfg, update, &path, LogLevel::default()).await;
+            }
+        };
+        run(&["capycal", "--validate"]).await;
+        run(&["capycal", "--status"]).await;
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), old);
+        // Fails for want of syncs, after updating the file
+        run(&["capycal", "--once"]).await;
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .starts_with("version = 2\n")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
     async fn test_running_needs_syncs() {
         let dir = state_dir("no-syncs");
         let path = Path::new("/etc/capycal.toml");
@@ -548,7 +588,7 @@ fields = ["DTSTART"]
             let cli = Cli::parse_from(args);
             let cfg =
                 toml::from_str(&format!("[daemon]\nstate_dir = \"{}\"\n", dir.display())).unwrap();
-            let err = run_config(&cli, cfg, path, LogLevel::default())
+            let err = run_config(&cli, cfg, None, path, LogLevel::default())
                 .await
                 .unwrap_err();
             assert!(
@@ -602,6 +642,7 @@ fields = ["DTSTART"]
             let err = run_config(
                 &cli,
                 Config::load(&path).unwrap(),
+                None,
                 &path,
                 LogLevel::default(),
             )
@@ -657,6 +698,7 @@ fields = ["DTSTART"]
         run_config(
             &cli,
             Config::load(&path).unwrap(),
+            None,
             &path,
             LogLevel::default(),
         )

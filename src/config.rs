@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::config_migrate::ConfigUpdate;
 use crate::error::{Error, Result};
 use crate::ical::transform::{Action, Condition, Test, Transform};
 use crate::ical::window::Window;
@@ -550,7 +551,20 @@ pub const STATE_DIR_ENV: &str = "CAPYCAL_STATE_DIR";
 const EVENTKIT_MAX_WINDOW_DAYS: u64 = 1460;
 
 impl Config {
+    /// Read `path`, bringing an older file up to the current version on disk
+    /// (see `config_migrate`): at start and on reload.
     pub fn load(path: &std::path::Path) -> Result<Self> {
+        let (config, update) = Self::read(path)?;
+        if let Some(update) = update {
+            update.write();
+        }
+        Ok(config)
+    }
+
+    /// Read `path` without changing it: an older file is migrated in memory,
+    /// and the update to write is returned, for commands that only look
+    /// (status, validate) or that write it once logging is set up.
+    pub fn read(path: &std::path::Path) -> Result<(Self, Option<ConfigUpdate>)> {
         let content =
             std::fs::read_to_string(path).map_err(|e| Error::Config(format!("{path:?}: {e}")))?;
         let parse_error = |e| Error::Config(format!("failed to parse {}: {e}", path.display()));
@@ -569,10 +583,13 @@ impl Config {
         let mut config = parse(&text).map_err(parse_error)?;
         config.config_dir = path.parent().map(|p| p.to_path_buf());
         config.validate()?;
-        if !notes.is_empty() {
-            crate::config_migrate::write_back(path, &content, &text, &notes);
-        }
-        Ok(config)
+        let update = (!notes.is_empty()).then(|| ConfigUpdate {
+            path: path.to_path_buf(),
+            old: content,
+            new: text,
+            notes,
+        });
+        Ok((config, update))
     }
 
     /// Resolve the state directory: `state_dir` in the config, then the

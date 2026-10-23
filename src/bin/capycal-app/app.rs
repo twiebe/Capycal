@@ -90,9 +90,10 @@ struct App {
 }
 
 pub fn run(config_path: PathBuf) -> ExitCode {
-    // The log level comes from the config if it loads; problems are reported later
-    let level = capycal::Config::load(&config_path)
-        .map(|c| c.daemon.log_level)
+    // The log level comes from the config if it loads; problems are reported
+    // later, and the backend's first load updates an old file once logging runs
+    let level = capycal::Config::read(&config_path)
+        .map(|(c, _)| c.daemon.log_level)
         .unwrap_or_else(|_| "info".to_string());
     let log_file = default_log_file("capycal-app")
         .unwrap_or_else(|| std::env::temp_dir().join("capycal-app.log"));

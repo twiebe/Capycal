@@ -45,10 +45,25 @@ pub fn migrate(doc: &mut DocumentMut) -> Result<Vec<String>, String> {
     Ok(notes)
 }
 
-/// Replace the file at `path` (its text `old`) with the migrated `new`,
-/// keeping `old` as a timestamped backup next to the real file. A file that
-/// cannot be written stays as it is: the caller runs with `new` in memory.
-pub(crate) fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
+/// A migrated config file not written yet (`Config::read`).
+#[derive(Debug)]
+pub struct ConfigUpdate {
+    pub(crate) path: PathBuf,
+    pub(crate) old: String,
+    pub(crate) new: String,
+    pub(crate) notes: Vec<String>,
+}
+
+impl ConfigUpdate {
+    /// Replace the file with the migrated text, keeping the old one as a
+    /// timestamped backup next to the real file. A file that cannot be
+    /// written stays as it is: the caller runs with the update in memory.
+    pub fn write(self) {
+        write_back(&self.path, &self.old, &self.new, &self.notes);
+    }
+}
+
+fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
     let written = (|| -> std::io::Result<PathBuf> {
         let real = std::fs::canonicalize(path)?;
         let name = real.file_name().unwrap_or_default().to_string_lossy();
@@ -371,6 +386,24 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&backups[0]).unwrap(), CONFIG);
         assert_eq!(mode(&backups[0]), 0o640);
         assert_eq!(mode(&path), 0o640);
+    }
+
+    #[test]
+    fn test_read_never_writes() {
+        let dir = test_dir("read");
+        let path = dir.join("capycal.toml");
+        std::fs::write(&path, CONFIG).unwrap();
+        let (config, update) = crate::config::Config::read(&path).unwrap();
+        assert_eq!(config.version, Some(2));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), CONFIG);
+        assert!(backups(&dir).is_empty());
+        update.expect("an update").write();
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("version = 2")
+        );
+        assert_eq!(backups(&dir).len(), 1);
     }
 
     #[test]

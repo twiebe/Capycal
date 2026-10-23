@@ -383,7 +383,8 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
         commands: &mut mpsc::UnboundedReceiver<Command>,
     ) -> Option<Vec<Command>> {
         let mut early = Vec::new();
-        let Ok(config) = Config::load(&self.config_path) else {
+        // Before the first load: only look
+        let Ok((config, _)) = Config::read(&self.config_path) else {
             return Some(early);
         };
         let prompts = self.keychain.prompts;
@@ -1013,7 +1014,7 @@ fn apply_edit(editor: &mut ConfigEditor, edit: &Edit) -> capycal::Result<()> {
 }
 
 pub fn other_desktop_app(path: &Path) -> Option<capycal::LockHolder> {
-    let config = Config::load(path).ok()?;
+    let (config, _) = Config::read(path).ok()?;
     capycal::lock_holder(&config, path)
         .ok()
         .flatten()
