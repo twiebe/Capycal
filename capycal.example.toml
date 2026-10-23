@@ -68,10 +68,6 @@ interval = "5m"
 # Opt-in: content properties/components copied on top. Leave `fields` out for
 # busy blockers. Use "VALARM" to preserve existing notifications from the source.
 # fields = ["LOCATION", "VALARM"]
-# Compare the whole source with the target this often and clean up: create missing
-# events, update changed ones, remove duplicates and events no longer wanted
-# (default: "7d"). Also runs when the state is lost and with --full-sync.
-full_sync_interval = "7d"
 # Keep the sync in the config but stop it (default: true)
 # enabled = false
 

@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use toml_edit::{DocumentMut, value};
+use toml_edit::{DocumentMut, Item, TableLike, value};
 
 use crate::config_edit::{max_position, table_at};
 use tracing::{info, warn};
@@ -75,7 +75,27 @@ pub(crate) fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
     }
 }
 
-fn v1_to_v2(_doc: &mut DocumentMut, _notes: &mut Vec<String>) {}
+/// 0.3.0: a full sync runs once a day instead of every `full_sync_interval`.
+fn v1_to_v2(doc: &mut DocumentMut, notes: &mut Vec<String>) {
+    for (name, sync) in syncs(doc) {
+        if sync.remove("full_sync_interval").is_some() {
+            notes.push(format!(
+                "sync '{name}': removed full_sync_interval, Capycal now runs a full sync once a day"
+            ));
+        }
+    }
+}
+
+/// Every `[syncs.<name>]` table (or inline table) by name.
+fn syncs(doc: &mut DocumentMut) -> Vec<(String, &mut dyn TableLike)> {
+    let Some(syncs) = doc.get_mut("syncs").and_then(Item::as_table_like_mut) else {
+        return Vec::new();
+    };
+    syncs
+        .iter_mut()
+        .filter_map(|(name, item)| Some((name.get().to_string(), item.as_table_like_mut()?)))
+        .collect()
+}
 
 /// Set `version` as the first key, below a header comment of the file.
 fn set_version(doc: &mut DocumentMut) {
@@ -173,6 +193,28 @@ mod tests {
     fn test_empty_document() {
         let (_, out) = run("");
         assert_eq!(out, "version = 2\n");
+    }
+
+    #[test]
+    fn test_removes_full_sync_interval() {
+        let (notes, out) = run(
+            "[syncs.a]\nsource = \"x\"\nfull_sync_interval = \"7d\"\n# keep me\nenabled = false\n\n\
+             [syncs.b]\nsource = \"y\"\n",
+        );
+        let notes = notes.unwrap();
+        assert!(
+            notes.contains(
+                &"sync 'a': removed full_sync_interval, Capycal now runs a full sync once a day"
+                    .to_string()
+            ),
+            "{notes:?}"
+        );
+        assert_eq!(notes.len(), 2, "{notes:?}");
+        assert_eq!(
+            out,
+            "version = 2\n\n[syncs.a]\nsource = \"x\"\n# keep me\nenabled = false\n\n\
+             [syncs.b]\nsource = \"y\"\n"
+        );
     }
 
     #[test]

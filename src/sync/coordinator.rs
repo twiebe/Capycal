@@ -433,7 +433,7 @@ fn runner_settings(
         fields: sync_config.fields.iter().cloned().collect(),
         transforms: sync_config.compile_transforms()?,
         interval: sync_config.interval,
-        full_sync_interval: sync_config.full_sync_interval,
+        time_zone: crate::ical::transform::local_tz(),
         output_key,
     })
 }

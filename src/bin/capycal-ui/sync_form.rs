@@ -26,7 +26,6 @@ pub const VALARM_HINT: &str = "VALARM copies the reminders of the source events.
 pub enum SyncField {
     Name,
     Interval,
-    FullSyncInterval,
     EventKitDaysPast,
     EventKitDaysFuture,
     /// `concurrency` of the target calendar.
@@ -36,7 +35,7 @@ pub enum SyncField {
 /// The texts and choices of a form, for comparing.
 #[derive(Debug, Clone, PartialEq)]
 struct Texts {
-    values: [String; 8],
+    values: [String; 7],
     flags: (bool, bool),
     common: Vec<String>,
     transforms: Vec<TransformConfig>,
@@ -51,7 +50,6 @@ pub struct SyncForm {
     source: String,
     target: String,
     interval: String,
-    full_sync_interval: String,
     days_past: String,
     days_future: String,
     all_events: bool,
@@ -122,7 +120,6 @@ impl SyncForm {
             source: sync.source.clone(),
             target: sync.target.clone(),
             interval: duration_text(sync.interval),
-            full_sync_interval: duration_text(sync.full_sync_interval),
             days_past: sync.eventkit_days_past.to_string(),
             days_future: sync.eventkit_days_future.to_string(),
             all_events: sync.eventkit_all_events,
@@ -177,10 +174,6 @@ impl SyncForm {
         self.interval = text.to_string();
     }
 
-    pub fn set_full_sync_interval(&mut self, text: &str) {
-        self.full_sync_interval = text.to_string();
-    }
-
     pub fn set_eventkit_days(&mut self, past: &str, future: &str) {
         self.days_past = past.to_string();
         self.days_future = future.to_string();
@@ -218,7 +211,6 @@ impl SyncForm {
         match field {
             SyncField::Name => &self.name,
             SyncField::Interval => &self.interval,
-            SyncField::FullSyncInterval => &self.full_sync_interval,
             SyncField::EventKitDaysPast => &self.days_past,
             SyncField::EventKitDaysFuture => &self.days_future,
             SyncField::Concurrency => &self.concurrency,
@@ -347,10 +339,6 @@ impl SyncForm {
                 Ok(d) if !d.is_zero() => None,
                 _ => Some("Use a duration such as 5m or 1h"),
             },
-            SyncField::FullSyncInterval => match humantime::parse_duration(text) {
-                Ok(d) if !d.is_zero() => None,
-                _ => Some("Use a duration such as 7d"),
-            },
             SyncField::EventKitDaysPast | SyncField::EventKitDaysFuture => text
                 .parse::<u64>()
                 .err()
@@ -365,10 +353,9 @@ impl SyncForm {
     /// The sync to save, or the first problem. `other_names` are the names
     /// of the other syncs.
     pub fn build(&self, other_names: &[String]) -> Result<SyncConfig, String> {
-        const FIELDS: [SyncField; 6] = [
+        const FIELDS: [SyncField; 5] = [
             SyncField::Name,
             SyncField::Interval,
-            SyncField::FullSyncInterval,
             SyncField::EventKitDaysPast,
             SyncField::EventKitDaysFuture,
             SyncField::Concurrency,
@@ -412,7 +399,6 @@ impl SyncForm {
             eventkit_days_past: days(&self.days_past),
             eventkit_days_future: days(&self.days_future),
             eventkit_all_events: self.all_events,
-            full_sync_interval: duration(&self.full_sync_interval),
             enabled: self.enabled,
         };
         sync.compile_transforms().map_err(|e| {
@@ -433,7 +419,6 @@ impl SyncForm {
                 &self.source,
                 &self.target,
                 &self.interval,
-                &self.full_sync_interval,
                 &self.days_past,
                 &self.days_future,
                 &self.other,

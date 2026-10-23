@@ -8,7 +8,6 @@ use toml_edit::{DocumentMut, InlineTable, Item, Table, Value};
 use crate::config::{
     AccountConfig, CalendarConfig, ConditionConfig, Config, Credential, SyncConfig,
     TransformConfig, default_eventkit_days_future, default_eventkit_days_past,
-    default_full_sync_interval,
 };
 use crate::error::{Error, Result};
 
@@ -150,12 +149,6 @@ impl ConfigEditor {
         }
         if sync.eventkit_all_events {
             table.insert("eventkit_all_events", Item::Value(true.into()));
-        }
-        if sync.full_sync_interval != default_full_sync_interval() {
-            table.insert(
-                "full_sync_interval",
-                Item::Value(duration(sync.full_sync_interval)),
-            );
         }
         if !sync.transforms.is_empty() {
             let mut list = toml_edit::Array::new();
@@ -875,7 +868,6 @@ url = "https://work.example.com/home/"
         s.enabled = false;
         s.fields = vec!["SUMMARY".to_string(), "VALARM".to_string()];
         s.eventkit_days_past = 7;
-        s.full_sync_interval = Duration::from_secs(14 * 86400);
         s.transforms = vec![
             TransformConfig {
                 field: "SUMMARY".to_string(),
@@ -928,7 +920,7 @@ url = "https://work.example.com/home/"
         let text = editor.to_string();
         assert!(text.contains(
             "[syncs.\"b to ä\"]\nsource = \"a\"\ntarget = \"b\"\ninterval = \"1h 30m\"\nenabled = false\n\
-             fields = [\"SUMMARY\", \"VALARM\"]\neventkit_days_past = 7\nfull_sync_interval = \"14d\"\n\
+             fields = [\"SUMMARY\", \"VALARM\"]\neventkit_days_past = 7\n\
              transforms = [\n\
              \x20 { field = \"SUMMARY\", action = \"set_field\", value = \"Busy ({{source_name}})\" },\n\
              \x20 { action = \"add_buffer\", pre_event = \"30m\", post_event = \"15m\" },\n\
@@ -947,7 +939,6 @@ url = "https://work.example.com/home/"
             back.transforms[1].pre_event,
             Some(Duration::from_secs(1800))
         );
-        assert_eq!(back.full_sync_interval, s.full_sync_interval);
         assert_eq!(back.transforms[2].when, s.transforms[2].when);
     }
 

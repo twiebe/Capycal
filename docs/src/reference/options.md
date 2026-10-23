@@ -54,7 +54,6 @@ Each sync is a table named by its key, for example `[syncs.work-to-home]`. The n
 | `interval` | duration | required | Time between sync cycles |
 | `fields` | list of strings | `[]` | Content properties to copy, such as `"SUMMARY"`, `"LOCATION"`, `"DESCRIPTION"`; `"VALARM"` keeps alarm components. `DTSTART`, `DTEND`, `DURATION`, `RRULE`, `RDATE`, `EXDATE`, `STATUS`, `TRANSP`, `UID`, `DTSTAMP` and `RECURRENCE-ID` are always kept. See [`fields`](../concepts/syncs.md#fields) |
 | `enabled` | bool | `true` | `false` keeps the sync configured but stops it. See [Disabling a sync](../concepts/syncs.md#disabling-a-sync) |
-| `full_sync_interval` | duration | `"7d"` | Time between automatic full syncs; must be greater than zero. See [Full sync](../concepts/full-sync.md) |
 | `eventkit_days_past` | integer | `30` | Calendar.app source: days before now to query. Together with `eventkit_days_future` at most 1460 |
 | `eventkit_days_future` | integer | `365` | Calendar.app source: days after now to query |
 | `eventkit_all_events` | bool | `false` | Calendar.app source: query 20 years back and 4 years ahead in chunks |

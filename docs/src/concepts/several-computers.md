@@ -12,6 +12,6 @@ Each computer keeps its own state, so it does not see what another one wrote. Wr
 Limits:
 
 - Only CalDAV targets. A Calendar.app target is not checked, a full sync there runs only on the other triggers above.
-- The target server must support sync-collection; Nextcloud, Radicale, Baikal, SabreDAV, Fastmail, iCloud and most others do. Without it Capycal logs this at debug level and relies on `full_sync_interval`.
+- The target server must support sync-collection; Nextcloud, Radicale, Baikal, SabreDAV, Fastmail, iCloud and most others do. Without it Capycal logs this at debug level and relies on the daily full sync.
 - A change made elsewhere while a cycle writes to the target counts as the cycle's own and is picked up by the next full sync.
 - Switching a sync off (`enabled = false`) or changing its transforms reaches the other computer with the config. A purge with the desktop app writes `enabled = false`, so the other computer stops too; a purge with `--purge` does not, and the other computer restores the copies at its next cycle.

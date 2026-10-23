@@ -301,11 +301,6 @@ pub struct SyncConfig {
     pub eventkit_days_future: u64,
     #[serde(default)]
     pub eventkit_all_events: bool,
-    #[serde(
-        default = "default_full_sync_interval",
-        deserialize_with = "deserialize_duration"
-    )]
-    pub full_sync_interval: Duration,
     /// A disabled sync is validated but not run.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -313,10 +308,6 @@ pub struct SyncConfig {
 
 fn default_enabled() -> bool {
     true
-}
-
-pub(crate) fn default_full_sync_interval() -> Duration {
-    Duration::from_secs(7 * 86400)
 }
 
 pub(crate) fn default_eventkit_days_past() -> u64 {
@@ -637,12 +628,6 @@ impl Config {
                     sync.name, sync.source
                 )));
             }
-            if sync.full_sync_interval.is_zero() {
-                return Err(Error::Config(format!(
-                    "sync '{}': full_sync_interval must be positive",
-                    sync.name
-                )));
-            }
             let window = sync
                 .eventkit_days_past
                 .saturating_add(sync.eventkit_days_future);
@@ -717,7 +702,6 @@ impl SyncConfig {
             eventkit_days_past: default_eventkit_days_past(),
             eventkit_days_future: default_eventkit_days_future(),
             eventkit_all_events: false,
-            full_sync_interval: default_full_sync_interval(),
             enabled: true,
         }
     }
@@ -2607,37 +2591,6 @@ account = "acc"
     }
 
     #[test]
-    fn test_full_sync_interval() {
-        let config: Config = toml::from_str(&format!("{TWO_CALENDARS}{SYNC}")).unwrap();
-        assert_eq!(
-            config.syncs[0].full_sync_interval,
-            Duration::from_secs(7 * 86400)
-        );
-
-        let config: Config = toml::from_str(&format!(
-            "{TWO_CALENDARS}{SYNC}full_sync_interval = \"14d\"\n"
-        ))
-        .unwrap();
-        assert_eq!(
-            config.syncs[0].full_sync_interval,
-            Duration::from_secs(14 * 86400)
-        );
-        assert!(config.validate().is_ok());
-
-        let config: Config = toml::from_str(&format!(
-            "{TWO_CALENDARS}{SYNC}full_sync_interval = \"0s\"\n"
-        ))
-        .unwrap();
-        let msg = config.validate().unwrap_err().to_string();
-        assert!(msg.contains("full_sync_interval must be positive"), "{msg}");
-
-        let msg = parse_err(&format!(
-            "{TWO_CALENDARS}{SYNC}full_sync_interval = \"monthly\"\n"
-        ));
-        assert!(msg.contains("full_sync_interval"), "{msg}");
-    }
-
-    #[test]
     fn test_state_dir_precedence() {
         let mut config: Config = toml::from_str("").unwrap();
         let env = |v: &str| Some(std::ffi::OsString::from(v));
@@ -2780,11 +2733,6 @@ password = "secret"
             base,
             slower.output_key(&cal("https://x/a/"), &cal("https://x/b/"))
         );
-        assert_eq!(
-            base,
-            sync("full_sync_interval = \"14d\"")
-                .output_key(&cal("https://x/a/"), &cal("https://x/b/"))
-        );
         // Order of fields does not matter
         let reordered: SyncConfig = toml::from_str(
             "source = \"a\"\ntarget = \"b\"\ninterval = \"5m\"\nfields = [\"LOCATION\", \"SUMMARY\"]\n",
@@ -2879,7 +2827,6 @@ password = "secret"
             toml::from_str("source = \"a\"\ntarget = \"b\"\ninterval = \"5m\"\n").unwrap();
         assert_eq!(sync.name, "s");
         assert_eq!(sync.interval, parsed.interval);
-        assert_eq!(sync.full_sync_interval, parsed.full_sync_interval);
         assert_eq!(sync.eventkit_days_past, parsed.eventkit_days_past);
         assert_eq!(sync.eventkit_days_future, parsed.eventkit_days_future);
         assert!(sync.enabled && sync.fields.is_empty() && sync.transforms.is_empty());

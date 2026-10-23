@@ -19,7 +19,6 @@ interval = "5m"
 | `interval` | yes | Time between cycles, e.g. `"30s"`, `"5m"`, `"1h"` |
 | `fields` | no | Content properties to copy on top of time, recurrence and availability (allow-list), default none |
 | `transforms` | no | List of [transforms](transforms.md), applied in order |
-| `full_sync_interval` | no | Time between automatic [full syncs](full-sync.md), default `"7d"` |
 | `eventkit_days_past` | no | See [Calendar.app query window](#calendarapp-query-window) |
 | `eventkit_days_future` | no | See below |
 | `eventkit_all_events` | no | See below |

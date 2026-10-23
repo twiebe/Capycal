@@ -90,10 +90,6 @@ version = 2
 ## "SUMMARY", "LOCATION", "DESCRIPTION" or "VALARM" for the source's
 ## reminders. Leave it out for busy blockers without any details.
 # fields = ["SUMMARY", "LOCATION"]
-## A full sync compares the whole source with the target and cleans up (missing,
-## changed, duplicate and no longer wanted events). It runs this often, when
-## the state is lost, and with --full-sync or "Full Sync" in the app.
-# full_sync_interval = "7d"
 ## Keep the sync in the config but stop it
 # enabled = true
 ## Calendar.app sources only: the queried window around today. Past plus

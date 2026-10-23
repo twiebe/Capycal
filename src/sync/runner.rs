@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use tokio::sync::{Notify, Semaphore, watch};
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
@@ -58,7 +58,8 @@ pub struct RunnerSettings {
     pub fields: HashSet<String>,
     pub transforms: Vec<Transform>,
     pub interval: Duration,
-    pub full_sync_interval: Duration,
+    /// A full sync runs on the first cycle of each day in this zone.
+    pub time_zone: chrono_tz::Tz,
     /// Changes when the config changes what the copies look like (opaque).
     pub output_key: String,
 }
@@ -91,7 +92,7 @@ pub struct SyncRunner<Src: EventSource, Snk: EventSink, St: StateStore> {
     transforms: Vec<Transform>,
     transform_ctx: TransformContext,
     interval: Duration,
-    full_sync_interval: Duration,
+    time_zone: chrono_tz::Tz,
     output_key: String,
     sink_semaphore: Arc<Semaphore>,
     store: Arc<St>,
@@ -134,7 +135,7 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
             transforms: settings.transforms,
             transform_ctx,
             interval: settings.interval,
-            full_sync_interval: settings.full_sync_interval,
+            time_zone: settings.time_zone,
             output_key: settings.output_key,
             sink_semaphore,
             store,
@@ -164,7 +165,7 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
     }
 
     /// Run a full sync if `full` is set, the state was lost or
-    /// `full_sync_interval` passed since the last one; else an incremental
+    /// the last one was on an earlier day; else an incremental
     /// cycle. A full sync reports its progress to `progress`.
     async fn cycle_reporting(
         &mut self,
@@ -183,7 +184,8 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
                 now
             }
         };
-        let due = TimeDelta::from_std(self.full_sync_interval).is_ok_and(|i| now - last >= i);
+        let day = |t: DateTime<Utc>| t.with_timezone(&self.time_zone).date_naive();
+        let due = day(now) != day(last);
         let reason = if full {
             "requested"
         } else if self.state.full_sync_pending {
@@ -193,7 +195,7 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
         } else if last == DateTime::UNIX_EPOCH {
             "no usable state"
         } else if due {
-            "interval"
+            "daily"
         } else if self.changed_elsewhere(shutdown).await? {
             "target changed elsewhere"
         } else {
@@ -1038,6 +1040,7 @@ mod tests {
     use super::*;
     use crate::ical::transform::{Action, Condition, Test};
     use crate::source::{PutResult, SinkChanges};
+    use chrono::TimeDelta;
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
     use std::sync::Mutex;
@@ -1283,7 +1286,6 @@ mod tests {
     }
 
     const SYNC_NAME: &str = "work-to-personal";
-    const FULL_SYNC_INTERVAL: Duration = Duration::from_secs(30 * 86400);
 
     /// A state as saved before full syncs existed, so the first cycle is incremental.
     fn existing_state(store: &MemStore) {
@@ -1304,7 +1306,7 @@ mod tests {
             fields: ["DTSTART", "DTEND"].iter().map(|f| f.to_string()).collect(),
             transforms,
             interval: Duration::from_secs(3600),
-            full_sync_interval: FULL_SYNC_INTERVAL,
+            time_zone: chrono_tz::UTC,
             output_key: "k1".to_string(),
         }
     }
@@ -2611,10 +2613,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_full_sync_is_due_after_the_interval() {
+    async fn test_full_sync_runs_once_a_day() {
         let store = Arc::new(MemStore::default());
         let sink = FakeSink::default();
         let mut r = serial_runner(log_source(vec![event("e1", "v1")]), &store, &sink);
+        // 2026-01-01 12:00 UTC
         let t0 = DateTime::from_timestamp(1767268800, 0).unwrap();
         let (_tx, mut shutdown) = watch::channel(false);
         // A failing sink listing shows whether a cycle was a full sync
@@ -2626,20 +2629,43 @@ mod tests {
             store.load(SYNC_NAME).unwrap().unwrap().last_full_sync,
             Some(t0)
         );
-        let almost = t0 + TimeDelta::from_std(FULL_SYNC_INTERVAL).unwrap() - TimeDelta::seconds(1);
-        r.cycle(almost, &mut shutdown, false).await.unwrap();
-        let due = almost + TimeDelta::seconds(1);
-        assert!(r.cycle(due, &mut shutdown, false).await.is_err());
+        let late = t0 + TimeDelta::seconds(12 * 3600 - 1);
+        r.cycle(late, &mut shutdown, false).await.unwrap();
+        let midnight = late + TimeDelta::seconds(1);
+        assert!(r.cycle(midnight, &mut shutdown, false).await.is_err());
         assert!(r.cycle(t0, &mut shutdown, true).await.is_err());
 
         sink.log().fail_list = false;
         assert_eq!(
-            r.cycle(due, &mut shutdown, false).await.unwrap(),
+            r.cycle(midnight, &mut shutdown, false).await.unwrap(),
             stats(0, 0, 0, 0)
         );
-        assert_eq!(r.state.last_full_sync, Some(due));
-        r.cycle(due, &mut shutdown, false).await.unwrap();
-        assert_eq!(r.state.last_full_sync, Some(due));
+        assert_eq!(r.state.last_full_sync, Some(midnight));
+        // Not again the same day
+        sink.log().fail_list = true;
+        let evening = midnight + TimeDelta::seconds(23 * 3600);
+        r.cycle(evening, &mut shutdown, false).await.unwrap();
+        assert_eq!(r.state.last_full_sync, Some(midnight));
+        // After days off
+        let later = midnight + TimeDelta::days(3);
+        assert!(r.cycle(later, &mut shutdown, false).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_daily_full_sync_follows_the_time_zone() {
+        let store = Arc::new(MemStore::default());
+        let sink = FakeSink::default();
+        let mut r = serial_runner(log_source(vec![event("e1", "v1")]), &store, &sink);
+        // 2026-01-01 22:30 UTC, 23:30 in Berlin
+        let t0 = DateTime::from_timestamp(1767306600, 0).unwrap();
+        let (_tx, mut shutdown) = watch::channel(false);
+        r.cycle(t0, &mut shutdown, false).await.unwrap();
+        sink.log().fail_list = true;
+        // An hour later: still Jan 1 in UTC, Jan 2 in Berlin
+        let next = t0 + TimeDelta::hours(1);
+        r.cycle(next, &mut shutdown, false).await.unwrap();
+        r.time_zone = chrono_tz::Europe::Berlin;
+        assert!(r.cycle(next, &mut shutdown, false).await.is_err());
     }
 
     #[tokio::test(start_paused = true)]

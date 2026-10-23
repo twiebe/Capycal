@@ -91,7 +91,6 @@ pub enum FieldId {
     /// The address of a feed source.
     FeedUrl,
     Advanced,
-    FullSyncInterval,
     DaysPast,
     DaysFuture,
     AllEvents,
@@ -1581,21 +1580,6 @@ impl SettingsScreen {
             open: self.advanced,
         });
         if self.advanced {
-            controls.push(Control::Group(String::new()));
-            controls.push(Control::Note(
-                "Between full syncs, Capycal copies only what changed in the source. A full \
-                 sync reads every source event, compares it with its copy and fixes what \
-                 differs: missing, changed, duplicated or left-over copies."
-                    .to_string(),
-            ));
-            controls.push(Self::text(
-                FieldId::FullSyncInterval,
-                "Full sync every",
-                form.text(SyncField::FullSyncInterval),
-                "7d",
-                form.error(SyncField::FullSyncInterval),
-            ));
-            controls.push(Control::GroupEnd);
             // Only a Calendar.app source reads a window of days
             if self.settings.is_eventkit_calendar(form.source()) {
                 controls.push(Control::Group("Calendar.app events".to_string()));
@@ -1675,7 +1659,10 @@ impl SettingsScreen {
             .any(|s| s.name == name && s.running && s.full_sync.is_some());
         controls.push(Control::Group("Troubleshooting".to_string()));
         controls.push(Control::Note(
-            "Full Sync Now starts a full sync at once. Removing the synced events deletes the copies in the target and \
+            "Between full syncs, Capycal copies only what changed in the source. Once a \
+             day, a full sync reads every source event, compares it with its copy and \
+             fixes what differs: missing, changed, duplicated or left-over copies. Full \
+             Sync Now starts one at once. Removing the synced events deletes the copies in the target and \
              switches the sync off. Removing all events empties the target, also of \
              events Capycal did not create, and switches off every sync writing into it."
                 .to_string(),
@@ -2540,7 +2527,6 @@ impl SettingsScreen {
                 self.custom_fields = true;
                 form.set_other_fields(&t);
             }
-            SettingsInput::Text(FieldId::FullSyncInterval, t) => form.set_full_sync_interval(&t),
             SettingsInput::Text(FieldId::Concurrency, t) => form.set_concurrency(&t),
             SettingsInput::Text(FieldId::DaysPast, t) => {
                 let future = form.text(SyncField::EventKitDaysFuture).to_string();
@@ -4173,7 +4159,7 @@ interval = "5m"
         );
         assert_eq!(progress(&s), Some(Some((4, 4))));
         // Unsaved changes come first; another sync's full sync is not shown
-        s.input(SettingsInput::Text(FieldId::FullSyncInterval, "1d".into()));
+        s.input(SettingsInput::Text(FieldId::Interval, "1d".into()));
         assert_eq!(footer(&s.current_view()).0, "Unsaved changes");
         assert_eq!(progress(&s), Some(None));
         press(&mut s, FieldId::Revert);
@@ -4889,6 +4875,12 @@ interval = "5m"
     fn test_calendar_app_range_only_for_a_calendar_app_source() {
         let (mut s, _, _) = screen("all-events", CONFIG, true);
         s.input(SettingsInput::Pressed(FieldId::Advanced));
+        assert!(
+            s.current_view()
+                .controls
+                .iter()
+                .any(|c| matches!(c, Control::Note(t) if t.contains("Once a day, a full sync")))
+        );
         let has_days = |s: &SettingsScreen| {
             s.current_view()
                 .controls
@@ -4897,11 +4889,6 @@ interval = "5m"
         };
         // A CalDAV source has no window of days
         assert!(!has_days(&s));
-        assert!(
-            find(&s.current_view(), &FieldId::FullSyncInterval)
-                .id()
-                .is_some()
-        );
         s.update(
             &Update::CalendarAppCalendars(Ok(vec![capycal::CalendarInfo {
                 title: "Home".into(),
