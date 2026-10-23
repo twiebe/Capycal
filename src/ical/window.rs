@@ -15,8 +15,9 @@ pub struct Window {
 impl Window {
     /// Whether the event `ical` overlaps the window around `now`. A series
     /// counts when it runs during the window, whether or not an occurrence
-    /// falls into it. Local and zoned times are read as UTC; the window
-    /// grows by a day on each side, so a time zone never loses an event.
+    /// falls into it, and when one of its moved occurrences does. Local and
+    /// zoned times are read as UTC; the window grows by a day on each side,
+    /// so a time zone never loses an event.
     /// An event without a readable start is kept.
     pub fn contains(&self, ical: &str, now: DateTime<Utc>) -> bool {
         let days = |d: u64| {
@@ -31,15 +32,10 @@ impl Window {
         let until = days(self.days_future)
             .and_then(|d| now.checked_add_signed(d))
             .unwrap_or(NaiveDateTime::MAX);
+        // A moved occurrence counts too: it may lie in the window when its
+        // series does not
         let events = vevents(&unfold(ical));
-        // Overrides go with their master; only without one they count
-        let masters: Vec<&Vevent> = events.iter().filter(|e| !e.is_override).collect();
-        let relevant = if masters.is_empty() {
-            events.iter().collect()
-        } else {
-            masters
-        };
-        relevant.is_empty() || relevant.iter().any(|e| e.overlaps(from, until))
+        events.is_empty() || events.iter().any(|e| e.overlaps(from, until))
     }
 }
 
@@ -52,7 +48,6 @@ struct Vevent {
     rrule: bool,
     until: Option<NaiveDateTime>,
     rdate: bool,
-    is_override: bool,
 }
 
 impl Vevent {
@@ -115,7 +110,6 @@ fn vevents(unfolded: &str) -> Vec<Vevent> {
                             .and_then(parse_time);
                     }
                     "RDATE" => event.rdate = true,
-                    "RECURRENCE-ID" => event.is_override = true,
                     _ => {}
                 }
             }
@@ -235,12 +229,13 @@ mod tests {
     }
 
     #[test]
-    fn test_overrides_follow_their_master() {
+    fn test_a_moved_occurrence_counts() {
         let master = "BEGIN:VEVENT\r\nUID:x\r\nDTSTART:20210101T090000Z\r\nRRULE:FREQ=WEEKLY;UNTIL=20220101T000000Z\r\nEND:VEVENT\r\n";
         let moved = "BEGIN:VEVENT\r\nUID:x\r\nRECURRENCE-ID:20210108T090000Z\r\nDTSTART:20260615T090000Z\r\nEND:VEVENT\r\n";
         let ical = |events: &str| format!("BEGIN:VCALENDAR\r\n{events}END:VCALENDAR\r\n");
-        assert!(!WINDOW.contains(&ical(&format!("{master}{moved}")), now()));
-        // Without the master the override decides
+        // The series ended years ago, one occurrence moved into the window
+        assert!(!WINDOW.contains(&ical(master), now()));
+        assert!(WINDOW.contains(&ical(&format!("{master}{moved}")), now()));
         assert!(WINDOW.contains(&ical(moved), now()));
     }
 

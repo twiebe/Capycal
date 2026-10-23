@@ -952,14 +952,39 @@ async fn test_window_limits_a_caldav_source() {
     setup.put("past.ics", &event_in("past", -10, "")).await;
     let series = event_in("series", -365, "RRULE:FREQ=WEEKLY\n");
     setup.put("series.ics", &series).await;
+    // A series that ended long ago, one occurrence moved to the day after tomorrow
+    let day = |days: i64| chrono::Utc::now() + chrono::TimeDelta::days(days);
+    let (first, until, moved) = (day(-300), day(-200), day(2));
+    let ended = format!(
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//capycal test//EN\n\
+         BEGIN:VEVENT\nUID:moved\nDTSTAMP:20240101T000000Z\nDTSTART:{}\nDTEND:{}\n\
+         RRULE:FREQ=WEEKLY;UNTIL={}\nSUMMARY:moved\nEND:VEVENT\n\
+         BEGIN:VEVENT\nUID:moved\nDTSTAMP:20240101T000000Z\nRECURRENCE-ID:{}\n\
+         DTSTART:{}\nDTEND:{}\nSUMMARY:moved\nEND:VEVENT\nEND:VCALENDAR\n",
+        first.format("%Y%m%dT090000Z"),
+        first.format("%Y%m%dT100000Z"),
+        until.format("%Y%m%dT235959Z"),
+        first.format("%Y%m%dT090000Z"),
+        moved.format("%Y%m%dT090000Z"),
+        moved.format("%Y%m%dT100000Z"),
+    );
+    setup.put("moved.ics", &ended).await;
     setup.sync();
     let copied = origins(&setup.server, &setup.sink).await;
-    assert_eq!(copied, ["source/series", "source/soon"]);
+    assert_eq!(copied, ["source/moved", "source/series", "source/soon"]);
 
     // A wider window copies the later event with the next (full) sync
     setup.edit_config("days_future = 30", "days_future = 90");
     setup.sync();
     let copied = origins(&setup.server, &setup.sink).await;
-    assert_eq!(copied, ["source/later", "source/series", "source/soon"]);
+    assert_eq!(
+        copied,
+        [
+            "source/later",
+            "source/moved",
+            "source/series",
+            "source/soon"
+        ]
+    );
     setup.cleanup().await;
 }

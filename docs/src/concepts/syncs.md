@@ -87,7 +87,7 @@ A sync can copy only the source events around today:
 | `days_past` | `30` | Days before now to include |
 | `days_future` | `365` | Days after now to include |
 
-An event is in the window when its time overlaps it. A recurring event is copied as a whole series if it might have an occurrence in the window: it starts before the window ends and its `RRULE` does not end (`UNTIL`) before the window starts. A series without an end, or with `COUNT` or `RDATE`, counts as running on, so a yearly event that started years ago is copied even when none of its occurrences falls into a short window. Times in a time zone count as UTC and the window is a day wider on each side, so no event at the edge is lost.
+An event is in the window when its time overlaps it. A recurring event is copied as a whole series if it might have an occurrence in the window: it starts before the window ends and its `RRULE` does not end (`UNTIL`) before the window starts. A series without an end, or with `COUNT` or `RDATE`, counts as running on, so a yearly event that started years ago is copied even when none of its occurrences falls into a short window. A series that ended before the window is still copied when one of its occurrences was moved into it. Times in a time zone count as UTC and the window is a day wider on each side, so no event at the edge is lost.
 
 Events that leave the window count as removed and their copies are deleted from the target. Events that enter it, as the window moves on with today, are copied. A CalDAV source or a feed reports only events that changed, so both happen with the daily [full sync](full-sync.md); a Calendar.app source is read in full every cycle, so there they happen at once.
 
