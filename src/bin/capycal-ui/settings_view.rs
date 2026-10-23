@@ -770,6 +770,9 @@ pub struct SettingsScreen {
     broken: bool,
 }
 
+/// Under the days of a source that is not Calendar.app.
+const SERIES_NOTE: &str =
+    "A recurring event is copied as a whole series if it might have an occurrence in this range.";
 const DISCARD: &str = "Discard changes?";
 const ADD_ACCOUNT: &str = "Add Account…";
 const ADD_FEED: &str = "Add Calendar Feed…";
@@ -1424,6 +1427,9 @@ impl SettingsScreen {
                 form.error(SyncField::Interval),
             ));
         }
+        if !form.source().is_empty() {
+            self.window_controls(form, controls);
+        }
         controls.push(Control::GroupEnd);
 
         controls.push(Control::Joint {
@@ -1580,49 +1586,6 @@ impl SettingsScreen {
             open: self.advanced,
         });
         if self.advanced {
-            // Only a Calendar.app source reads a window of days
-            if self.settings.is_eventkit_calendar(form.source()) {
-                controls.push(Control::Group("Calendar.app events".to_string()));
-                controls.push(Control::Note(
-                    "Which events the sync reads from Calendar.app, counted from today."
-                        .to_string(),
-                ));
-                controls.push(Control::Row("Read".to_string()));
-                for (id, label, field, placeholder) in [
-                    (
-                        FieldId::DaysPast,
-                        "days back",
-                        SyncField::EventKitDaysPast,
-                        "30",
-                    ),
-                    (
-                        FieldId::DaysFuture,
-                        "days ahead",
-                        SyncField::EventKitDaysFuture,
-                        "365",
-                    ),
-                ] {
-                    // All events ignore the days
-                    controls.push(Control::Text {
-                        id,
-                        label: label.to_string(),
-                        value: form.text(field).to_string(),
-                        placeholder: placeholder.to_string(),
-                        error: form.error(field).map(str::to_string),
-                        secure: false,
-                        enabled: !form.all_events(),
-                        suggestions: Vec::new(),
-                    });
-                }
-                controls.push(Control::RowEnd);
-                controls.push(Control::Check {
-                    id: FieldId::AllEvents,
-                    label: "All events (20 years back, 4 years ahead)".to_string(),
-                    on: form.all_events(),
-                    hint: None,
-                });
-                controls.push(Control::GroupEnd);
-            }
             // Only a CalDAV target limits its writes
             if self.settings.calendar(form.target()).is_some()
                 && !self.settings.is_eventkit_calendar(form.target())
@@ -1649,6 +1612,49 @@ impl SettingsScreen {
         }
         self.status_lines(controls);
         self.save_footer(controls, form.original_name().is_some());
+    }
+
+    /// All events or the days around today, with what that means for the source.
+    fn window_controls(&self, form: &SyncForm, controls: &mut Vec<Control>) {
+        let eventkit = self.settings.is_eventkit_calendar(form.source());
+        let all = form.all_events(eventkit);
+        controls.push(Control::Segments {
+            id: FieldId::AllEvents,
+            label: "Events".to_string(),
+            items: vec!["All".to_string(), "Range".to_string()],
+            selected: Some(usize::from(!all)),
+            centered: false,
+        });
+        if all {
+            if eventkit {
+                controls.push(Control::Note(
+                    "Calendar.app: 20 years back and 4 years ahead.".to_string(),
+                ));
+            }
+            return;
+        }
+        controls.push(Control::Row("Copy".to_string()));
+        for (id, label, field, placeholder) in [
+            (FieldId::DaysPast, "days back", SyncField::DaysPast, "30"),
+            (
+                FieldId::DaysFuture,
+                "days ahead",
+                SyncField::DaysFuture,
+                "365",
+            ),
+        ] {
+            controls.push(Self::text(
+                id,
+                label,
+                form.text(field),
+                placeholder,
+                form.error(field),
+            ));
+        }
+        controls.push(Control::RowEnd);
+        if !eventkit {
+            controls.push(Control::Note(SERIES_NOTE.to_string()));
+        }
     }
 
     /// Full sync and removing the copies of the saved sync `name`.
@@ -2504,6 +2510,10 @@ impl SettingsScreen {
             .and_then(|f| self.settings.calendar(f.source()))
             .map(|c| self.calendar_own_name(c))
             .unwrap_or_default();
+        let eventkit_source = self
+            .settings
+            .sync_form_ref()
+            .is_some_and(|f| self.settings.is_eventkit_calendar(f.source()));
         let Some(form) = self.settings.sync_form() else {
             return;
         };
@@ -2529,12 +2539,12 @@ impl SettingsScreen {
             }
             SettingsInput::Text(FieldId::Concurrency, t) => form.set_concurrency(&t),
             SettingsInput::Text(FieldId::DaysPast, t) => {
-                let future = form.text(SyncField::EventKitDaysFuture).to_string();
-                form.set_eventkit_days(&t, &future);
+                let future = form.text(SyncField::DaysFuture).to_string();
+                form.set_days(&t, &future);
             }
             SettingsInput::Text(FieldId::DaysFuture, t) => {
-                let past = form.text(SyncField::EventKitDaysPast).to_string();
-                form.set_eventkit_days(&past, &t);
+                let past = form.text(SyncField::DaysPast).to_string();
+                form.set_days(&past, &t);
             }
             SettingsInput::Text(FieldId::TransformField(key), t) => {
                 if let Some(i) = transform.filter(|i| form.transform(*i).is_some()) {
@@ -2598,7 +2608,9 @@ impl SettingsScreen {
                 }
             }
             SettingsInput::Toggled(FieldId::Enabled, on) => form.set_enabled(on),
-            SettingsInput::Toggled(FieldId::AllEvents, on) => form.set_eventkit_all_events(on),
+            SettingsInput::Selected(FieldId::AllEvents, index) => {
+                form.set_all_events(index == 0, eventkit_source);
+            }
             SettingsInput::Toggled(FieldId::Field(property), _) => {
                 self.custom_fields = true;
                 form.toggle_field(property);
@@ -4025,7 +4037,7 @@ interval = "5m"
             .controls
             .iter()
             .filter_map(Control::id)
-            .take(6)
+            .take(7)
             .collect();
         assert_eq!(
             ids,
@@ -4033,6 +4045,7 @@ interval = "5m"
                 &FieldId::SyncName,
                 &FieldId::Source,
                 &FieldId::IntervalPreset,
+                &FieldId::AllEvents,
                 &FieldId::CopyPreset,
                 &FieldId::Target,
                 &FieldId::Advanced
@@ -4872,23 +4885,59 @@ interval = "5m"
     }
 
     #[test]
-    fn test_calendar_app_range_only_for_a_calendar_app_source() {
+    fn test_events_window_in_the_from_step() {
         let (mut s, _, _) = screen("all-events", CONFIG, true);
         s.input(SettingsInput::Pressed(FieldId::Advanced));
-        assert!(
+        let note = |s: &SettingsScreen, text: &str| {
             s.current_view()
                 .controls
                 .iter()
-                .any(|c| matches!(c, Control::Note(t) if t.contains("Once a day, a full sync")))
-        );
+                .any(|c| matches!(c, Control::Note(t) if t.contains(text)))
+        };
+        assert!(note(&s, "Once a day, a full sync"));
+        let events = |s: &SettingsScreen| match find(&s.current_view(), &FieldId::AllEvents) {
+            Control::Segments {
+                selected, items, ..
+            } => {
+                assert_eq!(items, &["All", "Range"]);
+                *selected
+            }
+            other => panic!("{other:?}"),
+        };
         let has_days = |s: &SettingsScreen| {
             s.current_view()
                 .controls
                 .iter()
                 .any(|c| c.id() == Some(&FieldId::DaysPast))
         };
-        // A CalDAV source has no window of days
-        assert!(!has_days(&s));
+        let saved = |s: &SettingsScreen| {
+            s.settings
+                .sync_form_ref()
+                .unwrap()
+                .build(&[])
+                .unwrap()
+                .all_events
+        };
+        // A CalDAV source copies all events by default
+        assert_eq!(events(&s), Some(0));
+        assert!(!has_days(&s) && !note(&s, SERIES_NOTE));
+        s.input(SettingsInput::Selected(FieldId::AllEvents, 1));
+        assert!(has_days(&s) && note(&s, SERIES_NOTE));
+        assert_eq!(saved(&s), Some(false));
+        let view = s.current_view();
+        // Both day fields share one row
+        let row = view
+            .controls
+            .iter()
+            .position(|c| *c == Control::Row("Copy".into()))
+            .expect("row");
+        assert_eq!(view.controls[row + 1].id(), Some(&FieldId::DaysPast));
+        assert_eq!(view.controls[row + 2].id(), Some(&FieldId::DaysFuture));
+        assert_eq!(view.controls[row + 3], Control::RowEnd);
+        // Back to the default leaves it unset, so it follows the source
+        s.input(SettingsInput::Selected(FieldId::AllEvents, 0));
+        assert_eq!(saved(&s), None);
+
         s.update(
             &Update::CalendarAppCalendars(Ok(vec![capycal::CalendarInfo {
                 title: "Home".into(),
@@ -4908,30 +4957,17 @@ interval = "5m"
             i,
             Some(titles[i].clone()),
         ));
-        assert!(has_days(&s));
         // "Busy (Home)", not "Busy (Home (iCloud))"
         let source = s.settings.sync_form_ref().unwrap().source().to_string();
         let calendar = s.settings.calendar(&source).unwrap().clone();
         assert_eq!(s.calendar_name(&calendar), "Home (iCloud)");
         assert_eq!(s.calendar_own_name(&calendar), "Home");
-        let view = s.current_view();
-        // Both day fields share one row
-        let row = view
-            .controls
-            .iter()
-            .position(|c| *c == Control::Row("Read".into()))
-            .expect("row");
-        assert_eq!(view.controls[row + 1].id(), Some(&FieldId::DaysPast));
-        assert_eq!(view.controls[row + 2].id(), Some(&FieldId::DaysFuture));
-        assert_eq!(view.controls[row + 3], Control::RowEnd);
-        // All events grey out the days
-        let enabled = |s: &SettingsScreen| match find(&s.current_view(), &FieldId::DaysPast) {
-            Control::Text { enabled, .. } => *enabled,
-            _ => panic!("no days"),
-        };
-        assert!(enabled(&s));
-        s.input(SettingsInput::Toggled(FieldId::AllEvents, true));
-        assert!(!enabled(&s));
+        // Calendar.app reads a range by default, without the series note
+        assert_eq!(events(&s), Some(1));
+        assert!(has_days(&s) && !note(&s, SERIES_NOTE));
+        s.input(SettingsInput::Selected(FieldId::AllEvents, 0));
+        assert!(!has_days(&s) && note(&s, "Calendar.app: 20 years back"));
+        assert_eq!(saved(&s), Some(true));
     }
 
     #[test]

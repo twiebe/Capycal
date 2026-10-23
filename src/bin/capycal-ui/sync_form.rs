@@ -26,8 +26,8 @@ pub const VALARM_HINT: &str = "VALARM copies the reminders of the source events.
 pub enum SyncField {
     Name,
     Interval,
-    EventKitDaysPast,
-    EventKitDaysFuture,
+    DaysPast,
+    DaysFuture,
     /// `concurrency` of the target calendar.
     Concurrency,
 }
@@ -36,7 +36,7 @@ pub enum SyncField {
 #[derive(Debug, Clone, PartialEq)]
 struct Texts {
     values: [String; 7],
-    flags: (bool, bool),
+    flags: (Option<bool>, bool),
     common: Vec<String>,
     transforms: Vec<TransformConfig>,
 }
@@ -52,7 +52,8 @@ pub struct SyncForm {
     interval: String,
     days_past: String,
     days_future: String,
-    all_events: bool,
+    /// Unset follows the source: on for all but Calendar.app.
+    all_events: Option<bool>,
     enabled: bool,
     /// The target calendar's `concurrency` as typed, and as saved.
     concurrency: String,
@@ -122,7 +123,7 @@ impl SyncForm {
             interval: duration_text(sync.interval),
             days_past: sync.days_past.to_string(),
             days_future: sync.days_future.to_string(),
-            all_events: sync.all_events.unwrap_or(false),
+            all_events: sync.all_events,
             enabled: sync.enabled,
             concurrency: DEFAULT_CONCURRENCY.to_string(),
             saved_concurrency: DEFAULT_CONCURRENCY,
@@ -174,13 +175,15 @@ impl SyncForm {
         self.interval = text.to_string();
     }
 
-    pub fn set_eventkit_days(&mut self, past: &str, future: &str) {
+    pub fn set_days(&mut self, past: &str, future: &str) {
         self.days_past = past.to_string();
         self.days_future = future.to_string();
     }
 
-    pub fn set_eventkit_all_events(&mut self, on: bool) {
-        self.all_events = on;
+    /// Choose all events; the source's default is left unset, so it follows
+    /// a change of the source.
+    pub fn set_all_events(&mut self, on: bool, eventkit_source: bool) {
+        self.all_events = (on == eventkit_source).then_some(on);
     }
 
     pub fn set_enabled(&mut self, on: bool) {
@@ -211,8 +214,8 @@ impl SyncForm {
         match field {
             SyncField::Name => &self.name,
             SyncField::Interval => &self.interval,
-            SyncField::EventKitDaysPast => &self.days_past,
-            SyncField::EventKitDaysFuture => &self.days_future,
+            SyncField::DaysPast => &self.days_past,
+            SyncField::DaysFuture => &self.days_future,
             SyncField::Concurrency => &self.concurrency,
         }
     }
@@ -229,8 +232,8 @@ impl SyncForm {
         self.enabled
     }
 
-    pub fn all_events(&self) -> bool {
-        self.all_events
+    pub fn all_events(&self, eventkit_source: bool) -> bool {
+        self.all_events.unwrap_or(!eventkit_source)
     }
 
     pub fn is_selected(&self, property: &str) -> bool {
@@ -339,7 +342,7 @@ impl SyncForm {
                 Ok(d) if !d.is_zero() => None,
                 _ => Some("Use a duration such as 5m or 1h"),
             },
-            SyncField::EventKitDaysPast | SyncField::EventKitDaysFuture => text
+            SyncField::DaysPast | SyncField::DaysFuture => text
                 .parse::<u64>()
                 .err()
                 .map(|_| "Use a whole number of days"),
@@ -356,8 +359,8 @@ impl SyncForm {
         const FIELDS: [SyncField; 5] = [
             SyncField::Name,
             SyncField::Interval,
-            SyncField::EventKitDaysPast,
-            SyncField::EventKitDaysFuture,
+            SyncField::DaysPast,
+            SyncField::DaysFuture,
             SyncField::Concurrency,
         ];
         if let Some(e) = FIELDS.iter().find_map(|f| self.error(*f)) {
@@ -398,7 +401,7 @@ impl SyncForm {
                 .collect(),
             days_past: days(&self.days_past),
             days_future: days(&self.days_future),
-            all_events: self.all_events.then_some(true),
+            all_events: self.all_events,
             enabled: self.enabled,
         };
         sync.compile_transforms().map_err(|e| {
@@ -451,9 +454,25 @@ impl SyncForm {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::transform_form::Subject;
     use capycal::{SyncConfig, TransformAction};
     use std::time::Duration;
+
+    #[test]
+    fn test_all_events_follows_the_source_until_chosen() {
+        let mut form = SyncForm::edit(&SyncConfig::new("s", "a", "b"));
+        assert!(form.all_events(false) && !form.all_events(true));
+        // Off for a CalDAV source stays off for any source
+        form.set_all_events(false, false);
+        assert!(!form.all_events(false) && !form.all_events(true));
+        // On for Calendar.app stays on
+        form.set_all_events(true, true);
+        assert!(form.all_events(false) && form.all_events(true));
+        // The default of the source leaves it unset
+        form.set_all_events(true, false);
+        assert!(!form.all_events(true));
+    }
 
     fn existing() -> SyncConfig {
         let mut s = SyncConfig::new("work-to-home", "work", "home");
