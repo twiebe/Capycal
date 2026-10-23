@@ -767,12 +767,11 @@ impl SyncConfig {
                 opt(&target.eventkit_calendar)
             ),
             format!("fields={}", fields.join(",")),
-            format!(
-                "window={}|{}|{}",
-                self.days_past,
-                self.days_future,
-                self.all_events(source)
-            ),
+            // The days count only while a range applies
+            match self.window(source) {
+                Some(w) => format!("window={}|{}", w.days_past, w.days_future),
+                None => "window=all".to_string(),
+            },
         ];
         for t in &self.transforms {
             lines.push(format!(
@@ -2810,6 +2809,13 @@ password = "secret"
             base,
             reordered.output_key(&cal("https://x/a/"), &cal("https://x/b/"))
         );
+        // The days count only with a range
+        let key = |extra: &str| sync(extra).output_key(&cal("https://x/a/"), &cal("https://x/b/"));
+        assert_eq!(base, key("days_past = 7"));
+        assert_ne!(
+            key("all_events = false"),
+            key("all_events = false\ndays_past = 7")
+        );
 
         let mut retargeted = sync("");
         retargeted.target = "c".to_string();
@@ -2926,7 +2932,7 @@ password = "secret"
         // key's text only on purpose (0.3.0: the window line)
         assert_eq!(
             sync.output_key(&cal("https://x/a/"), &cal("https://x/b/")),
-            "8eac9f6e-ae61-5a88-9762-eb5add8a5891"
+            "b6b06bab-1246-5173-a03a-0a6c5ec3d8db"
         );
         sync.transforms[0].when = vec![ConditionConfig {
             field: "LOCATION".into(),
@@ -2936,7 +2942,7 @@ password = "secret"
         }];
         assert_eq!(
             sync.output_key(&cal("https://x/a/"), &cal("https://x/b/")),
-            "768f47de-c77f-558c-9d4d-72c1a8586c2a"
+            "7f50960e-d1a4-52f9-b17d-d8465542d521"
         );
     }
 }
