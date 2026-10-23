@@ -8,17 +8,21 @@ Before enabling a service, check the config with `capycal --validate -c <config>
 
 ### System service
 
-[`contrib/systemd/capycal.service`](https://github.com/twiebe/capycal/blob/main/contrib/systemd/capycal.service) runs Capycal as a dynamic, unprivileged user with a hardened sandbox:
+[`contrib/systemd/capycal.service`](https://github.com/twiebe/capycal/blob/main/contrib/systemd/capycal.service) runs Capycal as the unprivileged system user `capycal` with a hardened sandbox:
 
-- Config: `/etc/capycal/capycal.toml`.
-- Passwords: `VAR=value` lines in `/etc/capycal/capycal.env` (mode `0600`), referenced as `password = { env = "VAR" }`.
-- State: `/var/lib/capycal`, created by systemd (`StateDirectory=`) and passed to Capycal as `CAPYCAL_STATE_DIR`, since the dynamic user has no home directory. Don't set a different `state_dir` in the config.
-- Config updates: the daemon may not write `/etc`, so `ExecStartPre=-+... --migrate-config` brings a config of an older Capycal up to date before each start, outside the sandbox (see [Updates of the config file](config-file.md#updates-of-the-config-file)). A reload does not update the file; restart after an update of Capycal.
+- User: `capycal`, from [`contrib/systemd/capycal.sysusers`](https://github.com/twiebe/capycal/blob/main/contrib/systemd/capycal.sysusers). The .deb and .rpm packages install it and create the user.
+- Config: `/etc/capycal/capycal.toml`. The directory belongs to `capycal` and the service may write it (`ReadWritePaths=/etc/capycal`), so Capycal [updates a config of an older version](config-file.md#updates-of-the-config-file) itself and keeps the backup next to it. To keep the config read-only, remove that line and leave the directory to root: Capycal then runs with the update in memory and warns until the file is updated, for example with `capycal --migrate-config` run as its owner.
+- Passwords: `VAR=value` lines in `/etc/capycal/capycal.env` (owner root, mode `0600`), referenced as `password = { env = "VAR" }`. systemd reads it before the start; the service itself cannot.
+- State: `/var/lib/capycal`, created by systemd (`StateDirectory=`) and passed to Capycal as `CAPYCAL_STATE_DIR`. Don't set a different `state_dir` in the config.
+- Coming from Capycal 0.2, whose unit ran as a dynamic user: after the update, `sudo chown -R capycal: /etc/capycal && sudo chown root: /etc/capycal/capycal.env` hands the config to the new user. systemd moves the state over by itself.
 
 ```bash
 sudo install -m 0755 capycal /usr/local/bin/capycal
-sudo install -D -m 0644 capycal.toml /etc/capycal/capycal.toml
-sudo install -D -m 0600 capycal.env /etc/capycal/capycal.env
+sudo install -D -m 0644 contrib/systemd/capycal.sysusers /usr/lib/sysusers.d/capycal.conf
+sudo systemd-sysusers capycal.conf
+sudo install -d -o capycal -g capycal /etc/capycal
+sudo install -o capycal -g capycal -m 0640 capycal.toml /etc/capycal/capycal.toml
+sudo install -m 0600 capycal.env /etc/capycal/capycal.env
 sudo cp contrib/systemd/capycal.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now capycal
 ```

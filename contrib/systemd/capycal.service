@@ -1,7 +1,10 @@
 # System service. Install:
 #   sudo install -m 0755 capycal /usr/local/bin/capycal
-#   sudo install -D -m 0644 capycal.toml /etc/capycal/capycal.toml    # no passwords in here
-#   sudo install -D -m 0600 capycal.env /etc/capycal/capycal.env   # passwords, see capycal.toml { env = "..." }
+#   sudo install -D -m 0644 capycal.sysusers /usr/lib/sysusers.d/capycal.conf
+#   sudo systemd-sysusers capycal.conf    # the user capycal
+#   sudo install -d -o capycal -g capycal /etc/capycal
+#   sudo install -o capycal -g capycal -m 0640 capycal.toml /etc/capycal/capycal.toml    # no passwords in here
+#   sudo install -m 0600 capycal.env /etc/capycal/capycal.env   # passwords, see capycal.toml { env = "..." }
 #   sudo cp capycal.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now capycal
 #
@@ -16,10 +19,6 @@ After=network-online.target
 
 [Service]
 Type=simple
-# The daemon may not write /etc (ProtectSystem=strict): "+" runs this step outside
-# the sandbox, so a config of an older Capycal is updated before the start; "-": if it
-# cannot, the daemon still runs with the update in memory
-ExecStartPre=-+/usr/local/bin/capycal --config /etc/capycal/capycal.toml --migrate-config
 ExecStart=/usr/local/bin/capycal --config /etc/capycal/capycal.toml
 ExecReload=/bin/kill -HUP $MAINPID
 EnvironmentFile=-/etc/capycal/capycal.env
@@ -28,9 +27,14 @@ Restart=on-failure
 RestartSec=30s
 TimeoutStopSec=45s
 
-DynamicUser=yes
+User=capycal
+Group=capycal
 StateDirectory=capycal
 ConfigurationDirectory=capycal
+# Capycal updates a config of an older version itself, keeping a backup next to it.
+# Remove this line to keep the config read-only; Capycal then warns and runs with the
+# update in memory.
+ReadWritePaths=/etc/capycal
 
 NoNewPrivileges=yes
 ProtectSystem=strict

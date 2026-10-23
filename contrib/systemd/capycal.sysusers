@@ -1,0 +1,2 @@
+# The system user of capycal.service; install as /usr/lib/sysusers.d/capycal.conf
+u capycal - "Capycal calendar sync" /var/lib/capycal

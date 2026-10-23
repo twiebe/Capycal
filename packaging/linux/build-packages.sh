@@ -32,7 +32,7 @@ rm -rf "$dir"
 mkdir -p "$dir/completions" "$dir/systemd"
 cp "$bin" "$root/README.md" "$root/LICENSE" "$root/CONTRIBUTORS.md" "$root/THIRD-PARTY-NOTICES.txt" "$root/capycal.example.toml" "$stage/capycal.1" "$dir/"
 cp "$stage/capycal.bash" "$stage/_capycal" "$stage/capycal.fish" "$dir/completions/"
-cp "$root/contrib/systemd/capycal.service" "$root/contrib/systemd/capycal-user.service" "$dir/systemd/"
+cp "$root/contrib/systemd/capycal.service" "$root/contrib/systemd/capycal-user.service" "$root/contrib/systemd/capycal.sysusers" "$dir/systemd/"
 tar -C "$dist" -czf "$dist/$name.tar.gz" "$name"
 
 (cd "$root" && cargo deb --no-build --no-strip --target "$target" --output "$dist/")

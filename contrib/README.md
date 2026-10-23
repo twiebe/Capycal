@@ -4,7 +4,7 @@ Service definitions for running Capycal permanently. They assume the binary is a
 
 | File | Platform | Runs as |
 |---|---|---|
-| `systemd/capycal.service` | Linux | system service with a dynamic, unprivileged user; config in `/etc/capycal`, state in `/var/lib/capycal` |
+| `systemd/capycal.service` | Linux | system service as the unprivileged user `capycal` (`capycal.sysusers`); config in `/etc/capycal`, writable for config updates, state in `/var/lib/capycal` |
 | `systemd/capycal-user.service` | Linux | your user, default config and state paths |
 | `launchd/app.capycal.plist` | macOS | LaunchAgent in your login session, required for Calendar.app (EventKit) access |
 

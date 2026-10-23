@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+# The user of capycal.service
+if [ "$1" = "configure" ] && command -v systemd-sysusers >/dev/null 2>&1; then
+    systemd-sysusers capycal.conf || true
+fi

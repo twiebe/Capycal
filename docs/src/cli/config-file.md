@@ -146,7 +146,7 @@ The file starts with `version = 2`, the format it is written in. When an update 
 
 A file without `version` is version 1. A file with a higher version than Capycal knows was written by a newer Capycal; Capycal refuses it and asks to be updated.
 
-`capycal --migrate-config` only updates the file and exits; it needs no syncs and no lock. The systemd system service runs it before every start, since the daemon itself may not write `/etc` (see [Running on a server](server.md#system-service)).
+`capycal --migrate-config` only updates the file and exits; it needs no syncs and no lock. The systemd system service may write its config directory, so it updates the file itself (see [Running on a server](server.md#system-service)).
 
 If the file or its directory is read-only (a container with the config mounted read-only, for example), Capycal runs with the updated config in memory and logs what it would change and a warning on every load. Make the file writable once, or run `--migrate-config` where it is (see [Docker](server.md#docker)).
 
