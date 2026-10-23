@@ -381,7 +381,8 @@ pub enum IcalAlarm {
     Relative(i64),
 }
 
-/// Changes to apply to a sink EKEvent, parsed from incoming iCal.
+/// Changes to apply to a sink EKEvent, parsed from incoming iCal. A text
+/// field the iCal leaves out is cleared, as a CalDAV put would; other
 /// `None` fields leave the event's current value untouched.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SinkUpdate {
@@ -400,6 +401,15 @@ pub struct SinkUpdate {
 }
 
 impl SinkUpdate {
+    /// The notes to write: the description with the marker line.
+    pub fn notes_with_marker(&self) -> String {
+        let notes = self.notes.as_deref().unwrap_or("");
+        match &self.marker {
+            Some(marker) => with_marker(notes, marker),
+            None => notes.to_string(),
+        }
+    }
+
     /// All-day flag implied by DTSTART, so a change in either direction is applied.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn all_day(&self) -> Option<bool> {
@@ -737,7 +747,7 @@ pub struct StoredEvent {
 
 /// Whether applying `update` would leave `stored` as it is. `to_ts` converts
 /// an iCal date-time value in a timezone (UTC if None) to a Unix timestamp,
-/// as the sink does when it applies the update. Fields the update leaves
+/// as the sink does when it applies the update. Times the update leaves
 /// untouched are not compared; anything that can't be compared counts as a
 /// change.
 pub fn is_unchanged(
@@ -754,20 +764,13 @@ pub fn is_unchanged(
     if stored.floating && update.start.as_ref().is_some_and(zoned) {
         return false;
     }
-    let text_matches = |new: &Option<String>, old: Option<&str>| {
-        new.as_deref().is_none_or(|new| new == old.unwrap_or(""))
-    };
-    let notes = match (&update.notes, &update.marker) {
-        (notes, Some(marker)) => Some(with_marker(
-            notes.as_deref().or(stored.notes.as_deref()).unwrap_or(""),
-            marker,
-        )),
-        (notes, None) => notes.clone(),
-    };
-    text_matches(&update.title, Some(&stored.title))
-        && text_matches(&update.location, stored.location.as_deref())
-        && text_matches(&update.url, stored.url.as_deref())
-        && text_matches(&notes, stored.notes.as_deref())
+    // A missing text is an empty one on both sides
+    let text_matches =
+        |new: Option<&str>, old: Option<&str>| new.unwrap_or("") == old.unwrap_or("");
+    text_matches(update.title.as_deref(), Some(&stored.title))
+        && text_matches(update.location.as_deref(), stored.location.as_deref())
+        && text_matches(update.url.as_deref(), stored.url.as_deref())
+        && text_matches(Some(&update.notes_with_marker()), stored.notes.as_deref())
         && stored.free.is_none_or(|free| free == update.transparent)
         && same_times(update, &stored.times, &to_ts)
         && same_alarms(&update.alarms, &stored.alarms, &to_ts)
@@ -1370,6 +1373,31 @@ mod tests {
             ..stored()
         };
         assert!(!unchanged(SYNCED, &series));
+    }
+
+    #[test]
+    fn test_a_text_left_out_clears_the_copy() {
+        // The source dropped location, link and notes: the copy loses them
+        let bare = SYNCED
+            .replace("LOCATION:Room\r\n", "")
+            .replace("URL:https://example.com/m\r\n", "")
+            .replace("DESCRIPTION:Agenda\r\n", "");
+        let update = parse_ical(&bare);
+        assert_eq!(update.notes_with_marker(), marker("s", "work", "u").line());
+        assert!(!unchanged(&bare, &stored()));
+        let cleared = StoredEvent {
+            location: None,
+            url: None,
+            notes: Some(marker("s", "work", "u").line()),
+            ..stored()
+        };
+        assert!(unchanged(&bare, &cleared));
+        // Empty and missing are the same
+        let empty = StoredEvent {
+            location: Some(String::new()),
+            ..cleared
+        };
+        assert!(unchanged(&bare, &empty));
     }
 
     #[test]

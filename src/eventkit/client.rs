@@ -20,7 +20,7 @@ use crate::eventkit::CalendarInfo;
 use crate::eventkit::convert::{
     Alarm, Availability, EkEventData, EkTimes, Frequency, IcalAlarm, IcalTime, NotesMarker,
     Recurrence, RecurrenceEnd, Series, SinkUpdate, StoredEvent, StoredTimes, etag, find_marker,
-    is_unchanged, occurrence_href, parse_ical, parse_series, query_chunks, with_marker,
+    is_unchanged, occurrence_href, parse_ical, parse_series, query_chunks,
 };
 use crate::source::{EventSink, EventSource, PutResult, SinkEvent, SourceEvent};
 use crate::state::SyncState;
@@ -709,26 +709,29 @@ fn read_stored(event: &EKEvent) -> StoredEvent {
     }
 }
 
-/// Apply parsed iCal to a sink event. Fields absent from the iCal keep their
-/// current value.
+/// Apply parsed iCal to a sink event. Texts absent from the iCal are
+/// cleared, times keep their current value.
 fn apply_update(event: &EKEvent, calendar: &EKCalendar, update: &SinkUpdate) {
+    let text = |value: &Option<String>| {
+        value
+            .as_deref()
+            .filter(|v| !v.is_empty())
+            .map(NSString::from_str)
+    };
     unsafe {
-        if let Some(title) = &update.title {
-            event.setTitle(Some(&NSString::from_str(title)));
-        }
-        if let Some(location) = &update.location {
-            event.setLocation(Some(&NSString::from_str(location)));
-        }
-        if let Some(url) = &update.url {
-            // An empty or unreadable URL removes it
-            let url = Some(url)
-                .filter(|u| !u.is_empty())
-                .and_then(|u| NSURL::URLWithString(&NSString::from_str(u)));
-            event.setURL(url.as_deref());
-        }
-        if let Some(notes) = &update.notes {
-            event.setNotes(Some(&NSString::from_str(notes)));
-        }
+        event.setTitle(Some(&NSString::from_str(
+            update.title.as_deref().unwrap_or(""),
+        )));
+        event.setLocation(text(&update.location).as_deref());
+        // An unreadable URL removes it too
+        let url = text(&update.url).and_then(|u| NSURL::URLWithString(&u));
+        event.setURL(url.as_deref());
+        let notes = update.notes_with_marker();
+        event.setNotes(
+            (!notes.is_empty())
+                .then(|| NSString::from_str(&notes))
+                .as_deref(),
+        );
         // Set before the dates: the zone the event belongs to, so it keeps
         // its time when the Mac changes zones. All-day and floating events
         // have none.
@@ -790,15 +793,6 @@ fn apply_update(event: &EKEvent, calendar: &EKCalendar, update: &SinkUpdate) {
             event.setAlarms(None);
         } else {
             event.setAlarms(Some(&NSArray::from_retained_slice(&alarms)));
-        }
-
-        // Write the notes marker, replacing a legacy or outdated one
-        if let Some(marker) = &update.marker {
-            let current_notes = event.notes().map(|s| s.to_string()).unwrap_or_default();
-            let notes = with_marker(&current_notes, marker);
-            if notes != current_notes {
-                event.setNotes(Some(&NSString::from_str(&notes)));
-            }
         }
     }
 }
@@ -1404,6 +1398,14 @@ STATUS:CANCELLED";
         assert!(sink.is_unchanged(&synced[0].stored, &ical));
         assert!(!sink.is_unchanged(&synced[0].stored, &ical.replace("Single", "Other")));
         assert!(!sink.is_unchanged(&synced[0].stored, &ical.replace("/single", "/other")));
+
+        // The source dropped the link: the copy loses it
+        let bare = ical.replace("URL:https://meet.example.com/single\r\n", "");
+        assert_ne!(bare, ical);
+        sink.put_event(&put.href, &bare).await.unwrap();
+        let synced = sink.list_synced(SYNC, "src").await.unwrap();
+        assert!(sink.is_unchanged(&synced[0].stored, &bare));
+        assert!(!sink.is_unchanged(&synced[0].stored, &ical));
     }
 
     #[tokio::test]

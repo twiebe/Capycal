@@ -52,6 +52,7 @@ When writing to Calendar.app, Capycal translates timezone names macOS doesn't kn
 
 A Calendar.app target sets title, location, URL, notes, start, end, all-day flag, availability, alarms and recurrence from the synced event:
 
+- A title, location, URL or notes the synced event does not have is cleared, so a property removed in the source, or dropped from `fields`, also goes from the copy.
 - `DTEND`, or `DURATION` if there is no `DTEND`, sets the end.
 - `TRANSP:TRANSPARENT` sets availability "free", anything else "busy" (if the calendar supports availability).
 - Alarms mirror the synced `VALARM`s: alarms of the target event are replaced on every update. Leave `VALARM` out of `fields` and don't use `add_alarm` for blockers without reminders.
