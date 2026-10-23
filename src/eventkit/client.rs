@@ -1385,7 +1385,7 @@ STATUS:CANCELLED";
     async fn live_single_event_round_trip() {
         let calendar = TestCalendar::new("single");
         let sink = calendar.sink();
-        let body = "DTSTART:20270104T090000Z\nDTEND:20270104T100000Z\nSUMMARY:Single\nURL:https://meet.example.com/single\nTRANSP:TRANSPARENT";
+        let body = "DTSTART:20270104T090000Z\nDTEND:20270104T100000Z\nSUMMARY:Single\nURL:https://meet.example.com/single?room=Raum Ü\nTRANSP:TRANSPARENT";
         let ical = ics("single", body);
         let put = sink.put_event("capycal-single.ics", &ical).await.unwrap();
         let occurrences = calendar.occurrences();
@@ -1400,7 +1400,7 @@ STATUS:CANCELLED";
         assert!(!sink.is_unchanged(&synced[0].stored, &ical.replace("/single", "/other")));
 
         // The source dropped the link: the copy loses it
-        let bare = ical.replace("URL:https://meet.example.com/single\r\n", "");
+        let bare = ical.replace("URL:https://meet.example.com/single?room=Raum Ü\r\n", "");
         assert_ne!(bare, ical);
         sink.put_event(&put.href, &bare).await.unwrap();
         let synced = sink.list_synced(SYNC, "src").await.unwrap();

@@ -363,6 +363,24 @@ pub fn with_marker(notes: &str, marker: &NotesMarker) -> String {
     }
 }
 
+/// `url` with what NSURL rejects or would encode itself (spaces, non-ASCII,
+/// `"<>\^`{|}`) percent-encoded, so it is stored as written and a full
+/// sync finds it unchanged.
+fn encode_url(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for c in url.chars() {
+        if c.is_ascii_graphic() && !"\"<>\\^`{|}".contains(c) {
+            out.push(c);
+        } else {
+            let mut buf = [0; 4];
+            for b in c.encode_utf8(&mut buf).bytes() {
+                out.push_str(&format!("%{b:02X}"));
+            }
+        }
+    }
+    out
+}
+
 /// A DTSTART/DTEND value, converted to NSDate on the ObjC side.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IcalTime {
@@ -502,7 +520,7 @@ fn parse_vevent(lines: &[&str]) -> SinkUpdate {
             "TRANSP" => update.transparent = value == "TRANSPARENT",
             "SUMMARY" => update.title = Some(unescape_text(value)),
             "LOCATION" => update.location = Some(unescape_text(value)),
-            "URL" => update.url = Some(value.to_string()),
+            "URL" => update.url = Some(encode_url(value)),
             "DESCRIPTION" => update.notes = Some(unescape_text(value)),
             "DTSTART" => update.start = Some(ical_time(line, value)),
             "DURATION" => update.duration = parse_ical_duration(value),
@@ -1373,6 +1391,18 @@ mod tests {
             ..stored()
         };
         assert!(!unchanged(SYNCED, &series));
+    }
+
+    #[test]
+    fn test_url_is_encoded_as_nsurl_needs_it() {
+        let update = parse_ical(&vevent("UID:x\r\nURL:https://ex.com/a b/ü?q={1}"));
+        assert_eq!(
+            update.url.as_deref(),
+            Some("https://ex.com/a%20b/%C3%BC?q=%7B1%7D")
+        );
+        let plain = "https://meet.example.com/j/1?pwd=a%2Fb#x";
+        let update = parse_ical(&vevent(&format!("UID:x\r\nURL:{plain}")));
+        assert_eq!(update.url.as_deref(), Some(plain));
     }
 
     #[test]
