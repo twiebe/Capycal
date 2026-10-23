@@ -12,7 +12,9 @@ use crate::picker::{
 };
 use crate::settings::{Confirm, Selection, Settings};
 use crate::settings::{Edit, SettingsChange};
-use crate::sync_form::{COMMON_FIELDS, STRUCTURAL_NOTE, SyncField, SyncForm, VALARM_HINT};
+use crate::sync_form::{
+    COMMON_FIELDS, SCHEDULING_WARNING, STRUCTURAL_NOTE, SyncField, SyncForm, VALARM_HINT,
+};
 use crate::transform_form::{
     ACTIONS, DAY_NAMES, DAYS, FieldKind, PROPERTY_SUGGESTIONS, SUBJECTS, Subject, TEMPLATES, spec,
     tests,
@@ -1462,6 +1464,15 @@ impl SettingsScreen {
                     hint: (property == "VALARM").then(|| VALARM_HINT.to_string()),
                 });
             }
+            // Always there, empty when not needed, so the form keeps its shape
+            let scheduling = ["ATTENDEE", "ORGANIZER"]
+                .iter()
+                .any(|p| form.is_selected(p));
+            controls.push(Control::Error(if scheduling {
+                SCHEDULING_WARNING.to_string()
+            } else {
+                String::new()
+            }));
             controls.push(Self::text(
                 FieldId::OtherFields,
                 "Other fields",
@@ -5309,6 +5320,22 @@ interval = "5m"
                 true
             )
         );
+    }
+
+    #[test]
+    fn test_copying_attendees_warns_of_invitations() {
+        let (mut s, _, _) = screen("attendees", CONFIG, false);
+        let warned = |s: &SettingsScreen| {
+            s.current_view()
+                .controls
+                .contains(&Control::Error(SCHEDULING_WARNING.into()))
+        };
+        assert!(!warned(&s));
+        s.input(SettingsInput::Toggled(FieldId::Field("ORGANIZER"), true));
+        assert!(warned(&s));
+        s.input(SettingsInput::Toggled(FieldId::Field("ORGANIZER"), false));
+        s.input(SettingsInput::Toggled(FieldId::Field("ATTENDEE"), true));
+        assert!(warned(&s));
     }
 
     #[test]

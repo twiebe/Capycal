@@ -59,6 +59,7 @@ Notes:
 - Only events are copied. Tasks and journal entries (`VTODO`, `VJOURNAL`), which some servers such as Nextcloud keep in the same calendar, are skipped.
 - Cancelled events (`STATUS:CANCELLED` on the event or the whole series) are not copied, and a copy Capycal made earlier is removed. A cancelled single occurrence of a series is copied as cancelled, so the series stays intact.
 - Privacy: you don't need `SUMMARY` in `fields` to set a title. A `set_field` transform inserts it. Leaving `SUMMARY`, `DESCRIPTION`, `LOCATION`, `ATTENDEE`, `ORGANIZER` and `URL` out is the safe default for blockers.
+- Invitations: a CalDAV target that handles invitations (scheduling, as in Nextcloud or Google) may email the attendees of a copy that keeps `ATTENDEE` or `ORGANIZER`. Copy them only into a calendar you are sure about. In the app, **Keep** > **Custom** shows a warning while **Attendees** or **Organizer** is ticked.
 - Calendar.app sources only provide `DTSTART`, `DTEND`, `SUMMARY`, `LOCATION`, `DESCRIPTION`, `TRANSP` and `VALARM`. See [macOS and Calendar.app](calendar-app.md) for what Calendar.app targets write.
 
 ## How an event is processed

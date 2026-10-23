@@ -50,6 +50,7 @@ These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and
 
 - A field's mistake shows **below the field**, with the warning sign, **once the user leaves the field** (`SettingsInput::Left`), not while typing.
 - What keeps Save off shows **in the footer**, next to Save, with the warning sign. Save stays disabled meanwhile.
+- A choice that is allowed but may have effects outside Capycal shows them **below the choices**, with the warning sign, while it is chosen, and keeps Save on (attendees and organizer under **Keep** > **Custom** may send invitations). The line is always in the view, empty otherwise, so nothing moves.
 - **Long work shows its progress** where it was started: what is happening and how far ("Removing the synced events of "work"… 40 of 120") with a bar, counted first so the bar has an end. A save that removes copies shows it in the footer, so does a full sync of the shown sync (after a save that changed what it copies, or Full Sync Now), the Remove Synced Events dialog in its window.
 - A saved sync's **status line** under its name says how it is doing ("Synced 2 min ago: 3 new, 1 removed"); a failed sync shows the warning sign and turns its sidebar icon orange.
 - Long texts are cut off with "…" and are complete in the tooltip.

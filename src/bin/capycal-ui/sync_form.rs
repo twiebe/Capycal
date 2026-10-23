@@ -19,6 +19,10 @@ pub const COMMON_FIELDS: [(&str, &str); 8] = [
 
 pub const STRUCTURAL_NOTE: &str = "Times, recurrence, status and free/busy are always copied.";
 
+/// Shown while attendees or the organizer are copied.
+pub const SCHEDULING_WARNING: &str =
+    "A server that handles invitations may email the attendees of the copies.";
+
 pub const VALARM_HINT: &str = "VALARM copies the reminders of the source events. \
     \"Add alarm\" adds a reminder of its own, with or without VALARM.";
 

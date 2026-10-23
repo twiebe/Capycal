@@ -52,7 +52,7 @@ Each sync is a table named by its key, for example `[syncs.work-to-home]`. The n
 | `source` | string | required | Calendar key to read from |
 | `target` | string | required | Calendar key to write to; must differ from `source` |
 | `interval` | duration | required | Time between sync cycles |
-| `fields` | list of strings | `[]` | Content properties to copy, such as `"SUMMARY"`, `"LOCATION"`, `"DESCRIPTION"`; `"VALARM"` keeps alarm components. `DTSTART`, `DTEND`, `DURATION`, `RRULE`, `RDATE`, `EXDATE`, `STATUS`, `TRANSP`, `UID`, `DTSTAMP` and `RECURRENCE-ID` are always kept. See [`fields`](../concepts/syncs.md#fields) |
+| `fields` | list of strings | `[]` | Content properties to copy, such as `"SUMMARY"`, `"LOCATION"`, `"DESCRIPTION"`; `"VALARM"` keeps alarm components. `DTSTART`, `DTEND`, `DURATION`, `RRULE`, `RDATE`, `EXDATE`, `STATUS`, `TRANSP`, `UID`, `DTSTAMP` and `RECURRENCE-ID` are always kept. A target that handles invitations may email the attendees of copies with `ATTENDEE` or `ORGANIZER`. See [`fields`](../concepts/syncs.md#fields) |
 | `enabled` | bool | `true` | `false` keeps the sync configured but stops it. See [Disabling a sync](../concepts/syncs.md#disabling-a-sync) |
 | `all_events` | bool | `true`, `false` for a Calendar.app source | Copy every source event; a Calendar.app source then reads 20 years back and 4 years ahead in chunks. See [Event window](../concepts/syncs.md#event-window) |
 | `days_past` | integer | `30` | Without `all_events`: days before now to copy. For a Calendar.app source at most 1460 together with `days_future` |
