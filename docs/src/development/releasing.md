@@ -21,7 +21,24 @@ The workflow:
 - writes a `.sha256` file per archive, the AUR PKGBUILDs and the Homebrew formula and cask;
 - publishes a GitHub release with generated notes;
 - once the release is published, builds the container image for linux/amd64 and linux/arm64 from its musl tarballs (`image.yml`) and pushes it to `ghcr.io/twiebe/capycal` as `<version>`, `<major>.<minor>` and `latest`. The first push creates the package as private: make it public once under the package's settings on GitHub (Package settings > Change visibility);
-- with `HOMEBREW_TAP_TOKEN` commits the formula and cask to `twiebe/homebrew-capycal`, with `AUR_SSH_KEY` pushes `capycal-bin` and `capycal-app-bin` to the AUR.
+- with `HOMEBREW_TAP_TOKEN` commits the formula and cask to `twiebe/homebrew-capycal`, with `AUR_SSH_KEY` pushes `capycal-bin` and `capycal-app-bin` to the AUR;
+- with `WEBSITE_DISPATCH_TOKEN` asks `twiebe/capycal-web` to rebuild the site, which builds the [package repositories](#package-repositories) from the newest releases.
+
+## Package repositories
+
+capycal.app/packages carries an APT repository (`apt/`) and an RPM repository (`rpm/`) with the `.deb` and `.rpm` files of the newest three releases. The Pages workflow of `twiebe/capycal-web` builds them on every run, from the GitHub releases (`scripts/fetch-releases.sh`, `scripts/build-repos.sh`), so nothing is stored in git; the debs are copied into the site, the RPM metadata points at the release downloads. `make test-repos` there builds them with a throwaway key and installs from them in Debian, Ubuntu and Fedora containers.
+
+Both are signed with a key of their own, kept as the secret `PACKAGES_GPG_KEY` of `twiebe/capycal-web`; without it the site goes out without `packages/`. To create it (again, before it expires):
+
+```bash
+export GNUPGHOME=$(mktemp -d)
+gpg --batch --passphrase '' --quick-gen-key "Capycal Packages <packages@capycal.app>" rsa4096 sign 3y
+gpg --armor --export-secret-keys | gh secret set PACKAGES_GPG_KEY -R twiebe/capycal-web
+gpg --armor --export-secret-keys > capycal-packages.key   # keep offline
+gpg --fingerprint
+```
+
+Users fetch the public key from the site, so a new key reaches them with the next `curl` of the install steps; anyone who installed before has to fetch it again. Extend the expiry of the existing key instead (`gpg --quick-set-expire <fingerprint> 3y`, then set the secret again) to spare them that.
 
 A manual run (`workflow_dispatch`) builds and uploads the artifacts without publishing anything.
 

@@ -51,6 +51,28 @@ Continue with [Quick start: desktop app](app/quick-start.md).
 
 ## Linux packages
 
+The package repositories on capycal.app carry the CLI `capycal` and the desktop app `capycal-app` for x86_64 and arm64, so updates come with the system's (the desktop app needs Debian 13, Ubuntu 24.04, Fedora 40 or later). Debian, Ubuntu and their derivatives:
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+sudo curl -fsSLo /etc/apt/keyrings/capycal.asc https://capycal.app/packages/capycal.asc
+echo "deb [signed-by=/etc/apt/keyrings/capycal.asc] https://capycal.app/packages/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/capycal.list
+sudo apt update
+sudo apt install capycal        # or capycal-app
+```
+
+Fedora, RHEL and their derivatives:
+
+```bash
+sudo curl -fsSLo /etc/yum.repos.d/capycal.repo https://capycal.app/packages/rpm/capycal.repo
+sudo dnf install capycal        # or capycal-app
+```
+
+On openSUSE, put `capycal.repo` into `/etc/zypp/repos.d/` and install with `zypper install`. The repositories keep the newest three releases; the rpms themselves are downloaded from the GitHub releases, checked against the signed repository metadata.
+
+Without a repository, install a package from the [releases page](https://github.com/twiebe/capycal/releases) directly; it is not updated then:
+
 ```bash
 sudo apt install ./capycal_<version>-1_amd64.deb     # Debian, Ubuntu
 sudo dnf install ./capycal-<version>-1.x86_64.rpm    # Fedora, RHEL, openSUSE (zypper)
