@@ -2604,10 +2604,8 @@ impl SettingsWindow {
                 let b =
                     self.push_button(&disclosure_title(label, *open), Tagged::Button(id.clone()));
                 b.setBezelStyle(objc2_app_kit::NSBezelStyle::Push);
-                b.setControlSize(objc2_app_kit::NSControlSize::Small);
-                b.setFont(Some(&NSFont::systemFontOfSize(
-                    NSFont::smallSystemFontSize(),
-                )));
+                // Ends the form: a pill like the footer buttons
+                b.setControlSize(objc2_app_kit::NSControlSize::Large);
                 set_chevron(&b, *open);
                 let hairline = || {
                     let line = NSBox::new(self.mtm);

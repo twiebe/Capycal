@@ -46,7 +46,6 @@ const CSS: &str = "
 .capycal-join > button:first-child { border-top-left-radius: 999px; border-bottom-left-radius: 999px; padding-left: 14px; }
 .capycal-join > button:last-child { border-top-right-radius: 999px; border-bottom-right-radius: 999px; padding-right: 14px; }
 .capycal-round { border-radius: 999px; padding-left: 14px; padding-right: 14px; }
-.capycal-pill { border-radius: 999px; padding: 2px 12px; font-size: smaller; }
 .capycal-tag { border-radius: 999px; padding: 1px 8px; background: alpha(currentColor, 0.1); }
 .capycal-name { font-size: 22pt; font-weight: bold; padding: 0; min-height: 0; }
 .capycal-joint { min-height: 14px; }
@@ -1602,10 +1601,10 @@ impl SettingsWindow {
                 Drawn::Buttons(drawn)
             }
             Control::Disclosure { id, label, open } => {
-                // A small pill centered between two hairlines
+                // A pill centered between two hairlines
                 let b = gtk::Button::builder()
                     .label(disclosure_title(label, *open))
-                    .css_classes(["capycal-pill"])
+                    .css_classes(["capycal-round"])
                     .build();
                 let id = id.clone();
                 b.connect_clicked(move |_| send(SettingsInput::Pressed(id.clone())));
