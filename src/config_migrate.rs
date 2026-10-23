@@ -58,12 +58,17 @@ impl ConfigUpdate {
     /// Replace the file with the migrated text, keeping the old one as a
     /// timestamped backup next to the real file. A file that cannot be
     /// written stays as it is: the caller runs with the update in memory.
-    pub fn write(self) {
-        write_back(&self.path, &self.old, &self.new, &self.notes);
+    /// Returns whether the file was written.
+    pub fn write(self) -> bool {
+        write_back(&self.path, &self.old, &self.new, &self.notes)
     }
 }
 
-fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
+fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) -> bool {
+    // Logged before writing, so a file that stays old still says what changes
+    for note in notes {
+        info!(config = %path.display(), "{note}");
+    }
     let written = (|| -> std::io::Result<PathBuf> {
         let real = std::fs::canonicalize(path)?;
         let name = real.file_name().unwrap_or_default().to_string_lossy();
@@ -77,17 +82,19 @@ fn write_back(path: &Path, old: &str, new: &str, notes: &[String]) {
     })();
     match written {
         Ok(backup) => {
-            for note in notes {
-                info!(config = %path.display(), "{note}");
-            }
             info!(backup = %backup.display(), "updated the config to version {CONFIG_VERSION}");
+            true
         }
-        Err(e) => warn!(
-            config = %path.display(),
-            error = %e,
-            "could not update the config to version {CONFIG_VERSION}, running with the update \
-             in memory. Make the file writable and Capycal updates it on the next start or reload"
-        ),
+        Err(e) => {
+            warn!(
+                config = %path.display(),
+                error = %e,
+                "could not update the config to version {CONFIG_VERSION}, running with the \
+                 update in memory. Make the file writable and Capycal updates it on the next \
+                 start or reload, or run capycal --migrate-config"
+            );
+            false
+        }
     }
 }
 
@@ -397,7 +404,7 @@ mod tests {
         assert_eq!(config.version, Some(2));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), CONFIG);
         assert!(backups(&dir).is_empty());
-        update.expect("an update").write();
+        assert!(update.expect("an update").write());
         assert!(
             std::fs::read_to_string(&path)
                 .unwrap()

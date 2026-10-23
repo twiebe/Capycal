@@ -13,6 +13,7 @@ Before enabling a service, check the config with `capycal --validate -c <config>
 - Config: `/etc/capycal/capycal.toml`.
 - Passwords: `VAR=value` lines in `/etc/capycal/capycal.env` (mode `0600`), referenced as `password = { env = "VAR" }`.
 - State: `/var/lib/capycal`, created by systemd (`StateDirectory=`) and passed to Capycal as `CAPYCAL_STATE_DIR`, since the dynamic user has no home directory. Don't set a different `state_dir` in the config.
+- Config updates: the daemon may not write `/etc`, so `ExecStartPre=-+... --migrate-config` brings a config of an older Capycal up to date before each start, outside the sandbox (see [Updates of the config file](config-file.md#updates-of-the-config-file)). A reload does not update the file; restart after an update of Capycal.
 
 ```bash
 sudo install -m 0755 capycal /usr/local/bin/capycal
@@ -69,6 +70,12 @@ docker compose up -d
 - Put the passwords into `.env` next to `compose.yml` and reference them as `password = { env = "..." }`. `RUST_LOG` in `.env` overrides `log_level`, also on reload.
 - Time conditions of transforms use the zone in `TZ`, `UTC` in the compose file. Set it to yours, such as `Europe/Berlin`.
 - Pin a version (`ghcr.io/twiebe/capycal:0.2`) instead of `latest` to update only when you change the tag; `docker compose pull && docker compose up -d` updates.
+- The config is mounted read-only, so the container cannot update a config of an older Capycal: it runs with the update in memory and logs a warning. Update the file once with the directory mounted writable, as your user:
+
+  ```bash
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/config \
+    ghcr.io/twiebe/capycal --config /config/capycal.toml --migrate-config
+  ```
 
 ```bash
 docker compose logs -f capycal          # logs

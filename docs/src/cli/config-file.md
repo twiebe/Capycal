@@ -142,11 +142,13 @@ Removing a sync from the config stops it but leaves its events in the target and
 
 ## Updates of the config file
 
-The file starts with `version = 2`, the format it is written in. When an update of Capycal changes the format, for example renames an option, Capycal updates the file the first time it loads it to run: at start of the daemon, `--once`, `--full-sync`, `--purge` and the desktop app, and on every reload. `--validate` and `--status` only read: they check the updated config in memory and leave the file as it is. Before it writes the new file, it keeps the old one next to it as `capycal.toml.<date>-<time>.bak` (for example `capycal.toml.20261023-142501.bak`), with the same permissions, and logs every change it made. To go back to an older Capycal, put the backup back in place.
+The file starts with `version = 2`, the format it is written in. When an update of Capycal changes the format, for example renames an option, Capycal updates the file the first time it loads it to run: at start of the daemon, `--once`, `--full-sync`, `--purge`, `--install-service`, `--migrate-config` and the desktop app, and on every reload. `--validate` and `--status` only read: they check the updated config in memory and leave the file as it is. Before it writes the new file, it keeps the old one next to it as `capycal.toml.<date>-<time>.bak` (for example `capycal.toml.20261023-142501.bak`), with the same permissions, and logs every change it made. To go back to an older Capycal, put the backup back in place.
 
 A file without `version` is version 1. A file with a higher version than Capycal knows was written by a newer Capycal; Capycal refuses it and asks to be updated.
 
-If the file or its directory is read-only (a container with the config mounted read-only, for example), Capycal runs with the updated config in memory and logs a warning on every load. Make the file writable once and Capycal updates it on the next start or reload.
+`capycal --migrate-config` only updates the file and exits; it needs no syncs and no lock. The systemd system service runs it before every start, since the daemon itself may not write `/etc` (see [Running on a server](server.md#system-service)).
+
+If the file or its directory is read-only (a container with the config mounted read-only, for example), Capycal runs with the updated config in memory and logs what it would change and a warning on every load. Make the file writable once, or run `--migrate-config` where it is (see [Docker](server.md#docker)).
 
 ## Config lock
 

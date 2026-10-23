@@ -11,7 +11,8 @@ capycal [OPTIONS]
 | `--once` | Run every enabled sync once and exit |
 | `--only <NAMES>` | Run only these syncs (comma-separated), with the daemon, `--once` or `--full-sync` |
 | `--full-sync` | Start every sync with a [full sync](../concepts/full-sync.md), then continue as daemon (or exit with `--once`) |
-| `--validate` | Check the config and exit. Exits with `1` if it has no syncs |
+| `--validate` | Check the config and exit. Exits with `1` if it has no syncs. Never changes the file |
+| `--migrate-config` | Update a config of an older Capycal to the current format, keeping a backup, and exit (see [Updates of the config file](config-file.md#updates-of-the-config-file)). Exits with `1` if the file cannot be written |
 | `--status` | Show whether a Capycal process runs the config and what each sync's state says, then exit |
 | `--install-service` | Install, enable and start Capycal with this config as a systemd user service (Linux), see [User service](server.md#user-service) |
 | `--uninstall-service` | Stop and remove that service (Linux) |

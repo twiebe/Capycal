@@ -39,6 +39,12 @@ pub struct Cli {
     #[arg(long)]
     pub validate: bool,
 
+    /// Update an old config file to the current format, keeping a backup,
+    /// then exit. Running does that too; this is for a file the daemon may
+    /// not write, such as a systemd ExecStartPre
+    #[arg(long)]
+    pub migrate_config: bool,
+
     /// Show whether a capycal process runs the config and the state of each
     /// sync, then exit
     #[arg(long)]
@@ -179,6 +185,19 @@ async fn run_config(
     }
     if cli.status {
         return status::status(&config, config_path);
+    }
+    if cli.migrate_config {
+        let Some(update) = update else {
+            info!(config = %config_path.display(), "the config is up to date");
+            return Ok(());
+        };
+        if !update.write() {
+            return Err(CliError::Logged {
+                message: "could not update the config file".to_string(),
+                error: None,
+            });
+        }
+        return Ok(());
     }
     if let Some(update) = update {
         update.write();
@@ -566,6 +585,15 @@ fields = ["DTSTART"]
         run(&["capycal", "--validate"]).await;
         run(&["capycal", "--status"]).await;
         assert_eq!(std::fs::read_to_string(&path).unwrap(), old);
+        // Writes without syncs, then again finds nothing to do
+        run(&["capycal", "--migrate-config"]).await;
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .starts_with("version = 2\n")
+        );
+        run(&["capycal", "--migrate-config"]).await;
+        std::fs::write(&path, &old).unwrap();
         // Fails for want of syncs, after updating the file
         run(&["capycal", "--once"]).await;
         assert!(

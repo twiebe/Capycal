@@ -16,6 +16,10 @@ After=network-online.target
 
 [Service]
 Type=simple
+# The daemon may not write /etc (ProtectSystem=strict): "+" runs this step outside
+# the sandbox, so a config of an older Capycal is updated before the start; "-": if it
+# cannot, the daemon still runs with the update in memory
+ExecStartPre=-+/usr/local/bin/capycal --config /etc/capycal/capycal.toml --migrate-config
 ExecStart=/usr/local/bin/capycal --config /etc/capycal/capycal.toml
 ExecReload=/bin/kill -HUP $MAINPID
 EnvironmentFile=-/etc/capycal/capycal.env
