@@ -236,9 +236,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The checkout may keep only a lightweight tag: fetch the annotated
+          # one, whose message opens the release notes
+          git fetch --force --depth=1 origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' \
+            "refs/tags/$GITHUB_REF_NAME" >"$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --generate-notes \
             --verify-tag
       - name: Update the Homebrew tap
