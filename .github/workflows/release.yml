@@ -222,6 +222,8 @@ jobs:
       # Private SSH key of the AUR account that maintains capycal-bin and
       # capycal-app-bin; without it the PKGBUILDs are only attached to the release
       AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+      # The token the docs workflow uses to trigger the website build
+      WEBSITE_DISPATCH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -263,6 +265,13 @@ jobs:
       - name: Update the AUR packages
         if: env.AUR_SSH_KEY != ''
         run: packaging/linux/aur/publish.sh dist
+      # The Pages workflow of the website rebuilds the APT and RPM repositories
+      # from the newest releases
+      - name: Update the package repositories
+        if: env.WEBSITE_DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.WEBSITE_DISPATCH_TOKEN }}
+        run: gh api repos/twiebe/capycal-web/dispatches -f event_type=release
 
   # Once the release is out, its Linux binaries become the container image
   image:
