@@ -163,7 +163,7 @@ jobs:
       - name: Install GTK 4 and libadwaita
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev appstream
 
       - uses: dtolnay/rust-toolchain@stable
 

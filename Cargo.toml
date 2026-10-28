@@ -14,7 +14,7 @@ categories = ["command-line-utilities"]
 # Linux packages, built by packaging/linux/build-packages.sh from the
 # generated files in dist/pkg
 [package.metadata.deb]
-maintainer = "Thomas Wiebe"
+maintainer = "Thomas Wiebe <hello@heimblick.net>"
 copyright = "Thomas Wiebe"
 license-file = "LICENSE"
 section = "utils"
@@ -55,6 +55,7 @@ GNOME needs the AppIndicator extension to show tray icons."""
 assets = [
     ["target/release/capycal-app", "usr/bin/", "755"],
     ["packaging/linux/app.capycal.desktop", "usr/share/applications/", "644"],
+    ["dist/pkg-app/app.capycal.metainfo.xml", "usr/share/metainfo/", "644"],
     ["dist/pkg-app/icon-16.png", "usr/share/icons/hicolor/16x16/apps/app.capycal.png", "644"],
     ["dist/pkg-app/icon-32.png", "usr/share/icons/hicolor/32x32/apps/app.capycal.png", "644"],
     ["dist/pkg-app/icon-128.png", "usr/share/icons/hicolor/128x128/apps/app.capycal.png", "644"],
@@ -103,6 +104,7 @@ provides = { capycal-gtk = "*" }
 assets = [
     { source = "target/release/capycal-app", dest = "/usr/bin/capycal-app", mode = "755" },
     { source = "packaging/linux/app.capycal.desktop", dest = "/usr/share/applications/app.capycal.desktop", mode = "644" },
+    { source = "dist/pkg-app/app.capycal.metainfo.xml", dest = "/usr/share/metainfo/app.capycal.metainfo.xml", mode = "644" },
     { source = "dist/pkg-app/icon-16.png", dest = "/usr/share/icons/hicolor/16x16/apps/app.capycal.png", mode = "644" },
     { source = "dist/pkg-app/icon-32.png", dest = "/usr/share/icons/hicolor/32x32/apps/app.capycal.png", mode = "644" },
     { source = "dist/pkg-app/icon-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/app.capycal.png", mode = "644" },

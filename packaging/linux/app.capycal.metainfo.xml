@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata of the desktop app, read by software centers.
+     build-app-packages.sh fills in the release. -->
+<component type="desktop-application">
+  <id>app.capycal</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Capycal</name>
+  <summary>Calendar sync that knows how to keep a secret</summary>
+  <developer id="net.heimblick">
+    <name>Thomas Wiebe</name>
+  </developer>
+  <description>
+    <p>
+      Capycal copies events from one calendar into another and leaves out what the other side
+      doesn't need to know. Your colleagues know when you're free, your private appointments
+      stay private.
+    </p>
+    <p>
+      A tray icon runs your syncs in the background. Settings sets up a new sync in a few
+      clicks, with a live preview of what a copy will look like. Capycal works with any CalDAV
+      server, such as Nextcloud or Radicale, and reads iCal feeds such as Google's secret
+      address. GNOME needs the AppIndicator extension to show the tray icon.
+    </p>
+  </description>
+  <launchable type="desktop-id">app.capycal.desktop</launchable>
+  <url type="homepage">https://capycal.app/</url>
+  <url type="help">https://capycal.app/docs/</url>
+  <url type="bugtracker">https://github.com/twiebe/capycal/issues</url>
+  <url type="vcs-browser">https://github.com/twiebe/capycal</url>
+  <url type="donation">https://github.com/sponsors/twiebe</url>
+  <provides>
+    <binary>capycal-app</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>
