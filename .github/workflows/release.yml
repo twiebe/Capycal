@@ -224,12 +224,24 @@ jobs:
       AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
       # The token the docs workflow uses to trigger the website build
       WEBSITE_DISPATCH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+      # Only the step that signs gets the key itself
+      HAS_PACKAGES_KEY: ${{ secrets.PACKAGES_GPG_KEY != '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+      # With the key of the package repositories: dnf and PackageKit check
+      # each rpm against it. Unsigned rpms stay out of the repository.
+      - name: Sign the rpms
+        if: env.HAS_PACKAGES_KEY == 'true'
+        env:
+          PACKAGES_GPG_KEY: ${{ secrets.PACKAGES_GPG_KEY }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          packaging/linux/sign-rpms.sh dist
       - name: Write the AUR PKGBUILDs
         run: packaging/linux/aur/make-pkgbuild.sh dist dist
       - name: Write the Homebrew formula and cask

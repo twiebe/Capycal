@@ -18,6 +18,7 @@ The workflow:
 - builds and tests the CLI for `aarch64-apple-darwin`, `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` on native runners, and packs each into `capycal-v<version>-<target>.tar.gz` (binary, `README.md`, `LICENSE`, `CONTRIBUTORS.md`, `THIRD-PARTY-NOTICES.txt`, `capycal.example.toml`) plus a `.deb` and an `.rpm` for Linux;
 - builds `Capycal.app` and `capycal-v<version>-macos.dmg`;
 - builds the Linux desktop app as `capycal-app` `.deb` and `.rpm` for x86_64 and arm64;
+- with `PACKAGES_GPG_KEY` signs the `.rpm` files with the key of the [package repositories](#package-repositories);
 - writes a `.sha256` file per archive, the AUR PKGBUILDs and the Homebrew formula and cask;
 - publishes a GitHub release with generated notes;
 - once the release is published, builds the container image for linux/amd64 and linux/arm64 from its musl tarballs (`image.yml`) and pushes it to `ghcr.io/twiebe/capycal` as `<version>`, `<major>.<minor>` and `latest`. The first push creates the package as private: make it public once under the package's settings on GitHub (Package settings > Change visibility);
@@ -26,14 +27,17 @@ The workflow:
 
 ## Package repositories
 
-capycal.app/packages carries an APT repository (`apt/`) and an RPM repository (`rpm/`) with the `.deb` and `.rpm` files of the newest three releases. The Pages workflow of `twiebe/capycal-web` builds them on every run, from the GitHub releases (`scripts/fetch-releases.sh`, `scripts/build-repos.sh`), so nothing is stored in git; the debs are copied into the site, the RPM metadata points at the release downloads. `make test-repos` there builds them with a throwaway key and installs from them in Debian, Ubuntu and Fedora containers.
+capycal.app/packages carries an APT repository (`apt/`) and an RPM repository (`rpm/`) with the `.deb` and `.rpm` files of the newest three releases. The Pages workflow of `twiebe/capycal-web` builds them on every run, from the GitHub releases (`scripts/fetch-releases.sh`, `scripts/build-repos.sh`), so nothing is stored in git; the debs are copied into the site, the RPM metadata points at the release downloads. Both carry an AppStream catalog of the desktop app, so software centers find it before it is installed. `make test-repos` there builds them with a throwaway key and installs from them in Debian, Ubuntu and Fedora containers, on Fedora also through PackageKit, which software centers use.
 
-Both are signed with a key of their own, kept as the secret `PACKAGES_GPG_KEY` of `twiebe/capycal-web`; without it the site goes out without `packages/`. To create it:
+APT checks the signed `InRelease`. dnf and PackageKit check each rpm against the key instead (`gpgcheck`): PackageKit cannot import a key for signed RPM metadata and would skip the repository. So the release workflow signs the rpms, and the RPM repository takes only rpms signed with the key; releases before the first signed one stay out of it.
+
+Both are signed with a key of their own, kept as the secret `PACKAGES_GPG_KEY` of `twiebe/capycal-web`, and of `twiebe/capycal` for the rpms; without it the site goes out without `packages/`, and the rpms unsigned. To create it:
 
 ```bash
 export GNUPGHOME=$(mktemp -d)
 gpg --batch --passphrase '' --quick-gen-key "Capycal Packages <packages@capycal.app>" rsa4096 sign never
 gpg --armor --export-secret-keys | gh secret set PACKAGES_GPG_KEY -R twiebe/capycal-web
+gpg --armor --export-secret-keys | gh secret set PACKAGES_GPG_KEY -R twiebe/capycal
 gpg --armor --export-secret-keys > capycal-packages.key   # keep offline
 gpg --fingerprint
 rm -rf "$GNUPGHOME"
