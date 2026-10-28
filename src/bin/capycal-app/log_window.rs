@@ -121,6 +121,7 @@ impl LogWindow {
             .default_height(crate::dialog::layout::LOG_WINDOW.1 as i32)
             .content(&view)
             .build();
+        crate::window_keys(&window);
         // The style manager outlives the window
         let dark_changed = Cell::new(Some(dark_changed));
         window.connect_destroy(move |_| {

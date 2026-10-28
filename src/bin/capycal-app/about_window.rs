@@ -88,10 +88,11 @@ pub fn show(acknowledgements: impl Fn() + 'static) {
     let view = adw::ToolbarView::new();
     view.add_top_bar(&adw::HeaderBar::builder().show_title(false).build());
     view.set_content(Some(&column));
-    adw::Dialog::builder()
+    let dialog = adw::Dialog::builder()
         .title("About Capycal")
         .content_width(360)
         .child(&view)
-        .build()
-        .present(None::<&gtk::Widget>);
+        .build();
+    crate::window_keys(&dialog);
+    dialog.present(None::<&gtk::Widget>);
 }

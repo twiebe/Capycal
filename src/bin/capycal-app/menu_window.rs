@@ -44,6 +44,7 @@ impl MenuWindow {
             .default_height(640)
             .content(&view)
             .build();
+        crate::window_keys(&window);
         window.connect_close_request(move |_| {
             closed();
             glib::Propagation::Proceed

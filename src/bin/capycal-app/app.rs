@@ -236,6 +236,11 @@ impl App {
                 receiver.borrow_mut().hosted = online;
             }
         });
+        // Ctrl+Q in a window (see `crate::window_keys`)
+        let quit = gio::SimpleAction::new("quit", None);
+        let this = Rc::downgrade(&app);
+        quit.connect_activate(move |_, _| defer(&this, |app| app.request_quit()));
+        application.add_action(&quit);
         // At login the panel may start after the app; then the icon shows up.
         // Elsewhere there is no tray and the menu is a window from the start
         if cfg!(target_os = "linux") {
@@ -364,7 +369,7 @@ impl App {
             }
             Action::Quit => {
                 drop(app);
-                this.borrow_mut().quit();
+                this.borrow_mut().request_quit();
             }
         }
     }
@@ -863,6 +868,16 @@ impl App {
     }
 
     /// Stop the syncs, waiting at most `SHUTDOWN_WAIT`, then leave.
+    /// Quit, after asking about unsaved changes in Settings (its screen
+    /// asks and answers with `Reply::Quit`).
+    fn request_quit(&mut self) {
+        if self.settings_window.is_some() && self.settings.is_some() {
+            self.settings_input(SettingsInput::Shortcut(settings_view::Shortcut::Quit));
+        } else {
+            self.quit();
+        }
+    }
+
     fn quit(&mut self) {
         info!("quitting");
         #[cfg(target_os = "linux")]

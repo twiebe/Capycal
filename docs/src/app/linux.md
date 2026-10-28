@@ -36,4 +36,4 @@ Don't run the app and the [systemd user service](../cli/server.md#user-service) 
 
 A password typed in Settings is stored in your keyring through the Secret Service (GNOME Keyring, KWallet), as `{ keychain = "<account>" }` in the config. Passwords can also come from your keyring with a [command credential](../concepts/calendars.md#passwords), for example `{ command = "secret-tool lookup service capycal account work" }`.
 
-In the Settings window, **Ctrl+W** closes it and **Ctrl+Q** quits the app (both ask first about unsaved changes); Ctrl+S, Ctrl+N, Ctrl+Delete and Ctrl+Z work as Cmd on macOS.
+**Ctrl+W** closes a window or dialog and **Ctrl+Q** quits the app from any of them; with unsaved changes in Settings both ask first. **Esc** cancels the new-sync assistant. In Settings, Ctrl+S, Ctrl+N, Ctrl+Delete and Ctrl+Z work as Cmd on macOS.

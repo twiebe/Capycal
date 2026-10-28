@@ -179,6 +179,7 @@ impl DialogWindow {
             .content_width(crate::dialog::layout::DIALOG_WIDTH as i32)
             .child(&body)
             .build();
+        crate::window_keys(&dialog);
         let closed = notify.clone();
         dialog.connect_closed(move |_| closed(DialogInput::Closed));
 

@@ -2107,7 +2107,8 @@ fn report_leave(
 }
 
 /// Esc in a field, or a click on the editor's background, ends the typing
-/// there (the focus leaves the field, so its mistakes show).
+/// there (the focus leaves the field, so its mistakes show). Elsewhere Esc
+/// closes the wizard, which cancels it (Cancel's key on macOS).
 fn end_editing_on_escape_or_background(window: &adw::Window, editor: &gtk::Box) {
     let typing = |window: &adw::Window| {
         gtk::prelude::GtkWindowExt::focus(window).is_some_and(|f| f.is::<gtk::Text>())
@@ -2120,6 +2121,13 @@ fn end_editing_on_escape_or_background(window: &adw::Window, editor: &gtk::Box) 
             && typing(&window)
         {
             gtk::prelude::GtkWindowExt::set_focus(&window, None::<&gtk::Widget>);
+            return glib::Propagation::Stop;
+        }
+        if let Some(window) = w.upgrade()
+            && key == gtk::gdk::Key::Escape
+            && gtk::prelude::GtkWindowExt::is_modal(&window)
+        {
+            gtk::prelude::GtkWindowExt::close(&window);
             return glib::Propagation::Stop;
         }
         glib::Propagation::Proceed

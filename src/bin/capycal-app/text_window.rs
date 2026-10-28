@@ -87,6 +87,7 @@ impl TextWindow {
             .default_height(layout::TEXT_WINDOW.1 as i32)
             .content(&view)
             .build();
+        crate::window_keys(&window);
         window.connect_close_request(move |_| {
             closed();
             glib::Propagation::Proceed

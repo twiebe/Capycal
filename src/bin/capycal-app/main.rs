@@ -74,3 +74,31 @@ fn main() -> std::process::ExitCode {
         .unwrap_or_else(|| "capycal.toml".into());
     app::run(config_path)
 }
+
+/// Ctrl+W closes a window or dialog like its close button, Ctrl+Q quits
+/// (the app's `quit` action).
+fn window_keys(widget: &impl gtk::prelude::IsA<gtk::Widget>) {
+    use adw::prelude::*;
+    let close = gtk::CallbackAction::new(|widget, _| {
+        if let Some(dialog) = widget.downcast_ref::<adw::Dialog>() {
+            dialog.close();
+        } else if let Some(window) = widget.downcast_ref::<gtk::Window>() {
+            window.close();
+        }
+        gtk::glib::Propagation::Stop
+    });
+    let quit = gtk::CallbackAction::new(|_, _| {
+        if let Some(app) = gtk::gio::Application::default() {
+            app.activate_action("quit", None);
+        }
+        gtk::glib::Propagation::Stop
+    });
+    let keys = gtk::ShortcutController::new();
+    for (trigger, action) in [("<Control>w", close), ("<Control>q", quit)] {
+        keys.add_shortcut(gtk::Shortcut::new(
+            gtk::ShortcutTrigger::parse_string(trigger),
+            Some(action),
+        ));
+    }
+    widget.add_controller(keys);
+}
