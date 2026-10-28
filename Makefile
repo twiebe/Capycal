@@ -1,6 +1,7 @@
 .PHONY: help build build-ui build-gtk run run-ui run-app run-gtk test test-ui test-gtk test-caldav test-caldav-docker test-eventkit test-keychain \
        fmt lint clippy clippy-ui clippy-gtk notices check-notices clean \
        release release-ui release-tag dist dist-macos app dmg dist-linux-x86_64 dist-linux-arm64 dist-linux \
+       dist-linux-app-x86_64 dist-linux-app-arm64 dist-linux-app \
        docker-build up down logs reload docker-build-dev up-dev down-dev logs-dev validate once \
        docs docs-serve docs-docker docs-serve-docker
 
@@ -173,6 +174,17 @@ dist-linux-arm64: ## Static Linux CLI for arm64 (Docker buildx)
 		-f packaging/linux/Dockerfile.musl --output $(DIST)/aarch64-unknown-linux-musl .
 
 dist-linux: dist-linux-x86_64 dist-linux-arm64 ## Both static Linux CLIs
+
+# The desktop app needs glibc, GTK and libadwaita: built on Ubuntu 24.04
+dist-linux-app-x86_64: ## Linux desktop app .deb and .rpm for x86_64 (Docker buildx)
+	docker buildx build --platform linux/amd64 --build-arg TARGET=x86_64-unknown-linux-gnu \
+		-f packaging/linux/Dockerfile.app --output $(DIST) .
+
+dist-linux-app-arm64: ## Linux desktop app .deb and .rpm for arm64 (Docker buildx)
+	docker buildx build --platform linux/arm64 --build-arg TARGET=aarch64-unknown-linux-gnu \
+		-f packaging/linux/Dockerfile.app --output $(DIST) .
+
+dist-linux-app: dist-linux-app-x86_64 dist-linux-app-arm64 ## Both Linux desktop app packages
 
 ##@ Docker (docker-compose.yml)
 
