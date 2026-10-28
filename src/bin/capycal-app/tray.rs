@@ -29,7 +29,8 @@ struct CapycalTray {
 
 impl Tray {
     /// Register the tray icon. Fails without a session bus. Without a tray
-    /// host (yet) it waits for one and reports `false` on `hosted`.
+    /// host (yet) it waits for one and reports `false` on `hosted`, then
+    /// `true` when one starts. A host present from the start is not reported.
     pub fn spawn(
         icons: Vec<Rgba>,
         actions: async_channel::Sender<Action>,
@@ -42,7 +43,7 @@ impl Tray {
             icons,
             actions,
             hosted,
-            theme_path: icons::cache_dir().to_string_lossy().into_owned(),
+            theme_path: icons::tray_theme_path(),
         };
         // The app may start before the desktop's panel at login
         match tray.assume_sni_available(true).spawn() {

@@ -180,6 +180,14 @@ impl App {
         let commands = spawn_backend(config_path.clone(), log_level, updates_tx);
         #[cfg(not(target_os = "linux"))]
         drop((actions_tx, hosted_tx));
+        #[cfg(target_os = "linux")]
+        let tray = crate::tray::Tray::spawn(app_icons(), actions_tx, hosted_tx);
+        // ksni reports only a missing tray host, so a registered icon counts
+        // as shown until it says otherwise
+        #[cfg(target_os = "linux")]
+        let shown = tray.is_some();
+        #[cfg(not(target_os = "linux"))]
+        let shown = false;
 
         let app = Rc::new(RefCell::new(App {
             app: application.clone(),
@@ -189,8 +197,8 @@ impl App {
             commands,
             snapshot: Snapshot::default(),
             #[cfg(target_os = "linux")]
-            tray: crate::tray::Tray::spawn(app_icons(), actions_tx, hosted_tx),
-            hosted: false,
+            tray,
+            hosted: shown,
             log_window: None,
             problems_window: None,
             acknowledgements_window: None,

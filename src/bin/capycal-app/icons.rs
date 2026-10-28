@@ -41,11 +41,28 @@ const SYMBOLIC: [(&str, &[u8]); 8] = [
     ),
 ];
 
+/// Lets a tray host that searches only the cache find the hicolor theme there.
+const INDEX_THEME: &[u8] = b"[Icon Theme]
+Name=Hicolor
+Directories=256x256/apps,scalable/apps
+
+[256x256/apps]
+Size=256
+Type=Fixed
+
+[scalable/apps]
+Size=16
+MinSize=8
+MaxSize=512
+Type=Scalable
+";
+
 /// Make the bundled icons available unless the theme has them already.
 pub fn install() {
-    if theme().is_some_and(|theme| theme.has_icon(APP)) {
+    if installed() {
         return;
     }
+    write("index.theme", INDEX_THEME);
     write(&format!("256x256/apps/{APP}.png"), APP_PNG);
     for (name, svg) in SYMBOLIC {
         write(&format!("scalable/apps/{name}.svg"), svg);
@@ -72,8 +89,22 @@ pub fn symbolic(title: &str, svg: &[u8]) -> String {
 
 /// Where `install` writes the icons when they are not installed; the tray
 /// host looks there too.
-pub fn cache_dir() -> std::path::PathBuf {
+fn cache_dir() -> std::path::PathBuf {
     glib::user_cache_dir().join("capycal").join("icons")
+}
+
+/// Where a tray host looks for the tray icons. Empty when they are
+/// installed: GNOME's AppIndicator extension then searches only this path.
+pub fn tray_theme_path() -> String {
+    if installed() {
+        String::new()
+    } else {
+        cache_dir().to_string_lossy().into_owned()
+    }
+}
+
+fn installed() -> bool {
+    theme().is_some_and(|theme| theme.has_icon(APP))
 }
 
 fn theme() -> Option<gtk::IconTheme> {
