@@ -69,7 +69,11 @@ sudo curl -fsSLo /etc/yum.repos.d/capycal.repo https://capycal.app/packages/rpm/
 sudo dnf install capycal        # or capycal-app
 ```
 
-The repositories keep the newest three releases; the rpms themselves are downloaded from the GitHub releases, checked against the signed repository metadata.
+The repositories keep the newest three releases; the rpms themselves are downloaded from the GitHub releases. Both are signed with the key `Capycal Packages <packages@capycal.app>`, fingerprint `879B 2A04 8C4A A8CF 5741 5BBC 8B25 C0F5 B897 10C9`. To check the key you downloaded:
+
+```bash
+gpg --show-keys /etc/apt/keyrings/capycal.asc
+```
 
 Without a repository, install a package from the [releases page](https://github.com/twiebe/capycal/releases) directly; it is not updated then:
 
