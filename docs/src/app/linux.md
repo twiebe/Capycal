@@ -15,6 +15,8 @@ sudo dnf install ./capycal-app-<version>-1.x86_64.rpm   # Fedora
 makepkg -si -p capycal-app-bin.PKGBUILD                 # Arch Linux
 ```
 
+As a Flatpak, see [Flatpak](../installation.md#flatpak) and [below](#flatpak).
+
 On Arch Linux, download `capycal-app-bin.PKGBUILD` from the release first, see [Arch Linux](../installation.md#arch-linux).
 
 Up to 0.1.0 the app was called `capycal-gtk`. The `capycal-app` package replaces it, and the app points an enabled Start at Login to the new name on its first start.
@@ -37,3 +39,12 @@ Don't run the app and the [systemd user service](../cli/server.md#user-service) 
 A password typed in Settings is stored in your keyring through the Secret Service (GNOME Keyring, KWallet), as `{ keychain = "<account>" }` in the config. Passwords can also come from your keyring with a [command credential](../concepts/calendars.md#passwords), for example `{ command = "secret-tool lookup service capycal account work" }`.
 
 **Ctrl+W** closes a window or dialog and **Ctrl+Q** quits the app from any of them; with unsaved changes in Settings both ask first. **Esc** cancels the new-sync assistant. In Settings, Ctrl+S, Ctrl+N, Ctrl+Delete and Ctrl+Z work as Cmd on macOS.
+
+## Flatpak
+
+The Flatpak (`app.capycal.Capycal`) runs in a sandbox that may read and write only `~/.config/capycal` and `~/.local/state/capycal`, the same config and state as the packages: switching between the package and the Flatpak keeps your syncs, and the [config lock](../cli/config-file.md#config-lock) keeps both from syncing one config at once. Passwords in the keyring stay where they are. What differs:
+
+- **Start Capycal at login** asks the desktop (the Background portal), which may ask you; it writes `~/.config/autostart/app.capycal.Capycal.desktop`. If the desktop says no, the switch goes back off.
+- **Passwords**: a [command credential](../concepts/calendars.md#passwords) runs inside the sandbox, where host tools such as `secret-tool`, `pass` or `op` are missing; use `{ keychain = "<account>" }` instead. A `file` credential works only below `~/.config/capycal`.
+- **Log file**: `~/.var/app/app.capycal.Capycal/data/capycal/capycal-app.log`.
+- The `capycal` CLI is not part of the Flatpak.

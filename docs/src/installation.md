@@ -93,6 +93,16 @@ capycal --once                  # try it
 systemctl --user enable --now capycal
 ```
 
+## Flatpak
+
+The desktop app is also a Flatpak, for distributions that install apps that way (Bazzite, Fedora Silverblue, SteamOS) and for any other with Flatpak. It comes from the Flatpak repository on capycal.app, not from Flathub; the GNOME runtime it needs comes from Flathub. Open [app.capycal.Capycal.flatpakref](https://capycal.app/packages/app.capycal.Capycal.flatpakref) in GNOME Software or Discover, or:
+
+```bash
+flatpak install --user https://capycal.app/packages/app.capycal.Capycal.flatpakref
+```
+
+Updates then come with `flatpak update` and the software center's. Every release also carries `capycal-app-v<version>-<arch>.flatpak` for `flatpak install --user ./capycal-app-v<version>-x86_64.flatpak`; installed that way, it updates from the same repository. The repository is signed with the package key above. The Flatpak uses the same config and state as the packages; see [Flatpak](app/linux.md#flatpak) for what the sandbox changes. The CLI is not part of it.
+
 ## Arch Linux
 
 Capycal is not in the AUR yet: the AUR does not accept new accounts at the moment. Until it does, every release carries the PKGBUILDs the AUR packages would use. Download the one you need from the [releases page](https://github.com/twiebe/capycal/releases) and build it with `makepkg`:
