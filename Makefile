@@ -1,7 +1,7 @@
 .PHONY: help build build-ui build-gtk run run-ui run-app run-gtk test test-ui test-gtk test-caldav test-caldav-docker test-eventkit test-keychain \
        fmt lint clippy clippy-ui clippy-gtk notices check-notices clean \
        release release-ui release-tag dist dist-macos app dmg dist-linux-x86_64 dist-linux-arm64 dist-linux \
-       dist-linux-app-x86_64 dist-linux-app-arm64 dist-linux-app \
+       dist-linux-app-x86_64 dist-linux-app-arm64 dist-linux-app dist-flatpak \
        docker-build up down logs reload docker-build-dev up-dev down-dev logs-dev validate once \
        docs docs-serve docs-docker docs-serve-docker
 
@@ -185,6 +185,9 @@ dist-linux-app-arm64: ## Linux desktop app .deb and .rpm for arm64 (Docker build
 		-f packaging/linux/Dockerfile.app --output $(DIST) .
 
 dist-linux-app: dist-linux-app-x86_64 dist-linux-app-arm64 ## Both Linux desktop app packages
+
+dist-flatpak: ## The desktop app as a Flatpak bundle for this machine (needs flatpak-builder)
+	packaging/linux/build-flatpak.sh $(shell uname -m)
 
 ##@ Docker (docker-compose.yml)
 

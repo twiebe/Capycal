@@ -4,6 +4,7 @@
 /target
 /tmp
 /dist/
+/.flatpak-builder/
 /docs/book/
 /.claude/settings.local.json
 /.superpowers/

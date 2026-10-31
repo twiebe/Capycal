@@ -1,0 +1,78 @@
+# The desktop app as a Flatpak, built by packaging/linux/build-flatpak.sh,
+# which renders the metainfo into dist/pkg-flatpak first. Not for Flathub:
+# cargo fetches the crates during the build.
+id: app.capycal.Capycal
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: capycal-app
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The tray icon (StatusNotifierItem)
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Passwords in the Secret Service
+  - --talk-name=org.freedesktop.secrets
+  # The config and state of a native install (see capycal-app.sh)
+  - --filesystem=xdg-config/capycal:create
+  # Flatpak has no xdg-state location: the default path (see capycal-app.sh)
+  - --filesystem=~/.local/state/capycal:create
+  # Whether the Background portal set up Start at Login
+  - --filesystem=xdg-config/autostart:ro
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  # The SDK's flags end in -O2, which aws-lc's jitterentropy refuses (it
+  # must build with -O0); the crates set their own
+  cflags: ''
+  cflags-override: true
+  cxxflags: ''
+  cxxflags-override: true
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/capycal-app/cargo
+    CARGO_TARGET_DIR: /run/build/capycal-app/target
+modules:
+  - name: capycal-app
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --locked --features gtk --bin capycal-app
+      - install -Dm755 target/release/capycal-app /app/bin/capycal-app-bin
+      - install -Dm755 packaging/linux/flatpak/capycal-app.sh /app/bin/capycal-app
+      - >-
+        sed -e 's/^Icon=app.capycal$/Icon=app.capycal.Capycal/'
+        packaging/linux/app.capycal.desktop
+        | install -Dm644 /dev/stdin /app/share/applications/app.capycal.Capycal.desktop
+      - install -Dm644 flatpak/app.capycal.Capycal.metainfo.xml -t /app/share/metainfo/
+      # The app's windows use app.capycal, the desktop entry the exported name
+      - >-
+        for size in 16 32 128 256 512; do
+        dir=/app/share/icons/hicolor/${size}x${size}/apps;
+        install -Dm644 packaging/macos/icon/AppIcon.iconset/icon_${size}x${size}.png $dir/app.capycal.png;
+        install -Dm644 $dir/app.capycal.png $dir/app.capycal.Capycal.png;
+        done
+      - install -Dm644 -t /app/share/icons/hicolor/scalable/apps/ src/bin/capycal-app/icons/*.svg
+      # The tray host outside the sandbox sees only exported icons, named
+      # after the ID (icons::tray_name)
+      - >-
+        for icon in tray tray-error tray-syncing tray-inactive; do
+        install -Dm644 src/bin/capycal-app/icons/capycal-$icon-symbolic.svg
+        /app/share/icons/hicolor/scalable/apps/app.capycal.Capycal.$icon-symbolic.svg;
+        done
+    sources:
+      - type: dir
+        path: ../../..
+        skip:
+          - dist
+          - target
+          - .flatpak-builder
+          - .git
+          - .superpowers
+      - type: dir
+        path: ../../../dist/pkg-flatpak
+        dest: flatpak
