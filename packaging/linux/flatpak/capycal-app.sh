@@ -6,4 +6,4 @@
 # The state is always the default path: Flatpak can share no other.
 export XDG_CONFIG_HOME="${HOST_XDG_CONFIG_HOME:-$HOME/.config}"
 export XDG_STATE_HOME="$HOME/.local/state"
-exec capycal-app-bin "$@"
+exec /app/libexec/capycal-app "$@"

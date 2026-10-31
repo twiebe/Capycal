@@ -42,7 +42,8 @@ modules:
     buildsystem: simple
     build-commands:
       - cargo build --release --locked --features gtk --bin capycal-app
-      - install -Dm755 target/release/capycal-app /app/bin/capycal-app-bin
+      # Keeps its name: the config lock tells desktop apps apart by it
+      - install -Dm755 target/release/capycal-app /app/libexec/capycal-app
       - install -Dm755 packaging/linux/flatpak/capycal-app.sh /app/bin/capycal-app
       - >-
         sed -e 's/^Icon=app.capycal$/Icon=app.capycal.Capycal/'
