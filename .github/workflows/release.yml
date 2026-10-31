@@ -194,6 +194,45 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
 
+  # The bundle installs from a download and updates from the Flatpak
+  # repository on capycal.app, which the website builds from these bundles
+  flatpak:
+    name: Flatpak ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-24.04
+          - arch: aarch64
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder appstream
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - uses: actions/cache@v6
+        with:
+          path: .flatpak-builder
+          key: flatpak-${{ matrix.arch }}-${{ hashFiles('packaging/linux/flatpak/*', 'Cargo.lock') }}
+          restore-keys: flatpak-${{ matrix.arch }}-
+
+      - name: Build
+        run: packaging/linux/build-flatpak.sh ${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak-${{ matrix.arch }}
+          path: |
+            dist/*.flatpak
+            dist/*.flatpak.sha256
+          if-no-files-found: error
+
   # Every package ships THIRD-PARTY-NOTICES.txt as committed: refuse to
   # release a stale one
   notices:
@@ -210,7 +249,7 @@ jobs:
         run: make check-notices
 
   release:
-    needs: [build, app, gtk, notices]
+    needs: [build, app, gtk, flatpak, notices]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     permissions:
