@@ -101,7 +101,7 @@ The desktop app is also a Flatpak, for distributions that install apps that way 
 flatpak install --user https://capycal.app/packages/app.capycal.Capycal.flatpakref
 ```
 
-Updates then come with `flatpak update` and the software center's. Every release also carries `capycal-app-v<version>-<arch>.flatpak` for `flatpak install --user ./capycal-app-v<version>-x86_64.flatpak`; installed that way, it updates from the same repository. The repository is signed with the package key above. The Flatpak uses the same config and state as the packages; see [Flatpak](app/linux.md#flatpak) for what the sandbox changes. The CLI is not part of it.
+Updates then come with `flatpak update` and the software center's. Every release also carries `capycal-app-v<version>-<arch>.flatpak` for `flatpak install --user ./capycal-app-v<version>-x86_64.flatpak`; installed that way, it does not update (to switch, `flatpak uninstall app.capycal.Capycal` and install from the `.flatpakref`). The repository is signed with the package key above. The Flatpak uses the same config and state as the packages; see [Flatpak](app/linux.md#flatpak) for what the sandbox changes. The CLI is not part of it.
 
 ## Arch Linux
 

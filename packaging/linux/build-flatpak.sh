@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build the desktop app as a Flatpak for <arch> (x86_64, aarch64) and write
-# the single-file bundle dist/capycal-app-v<version>-<arch>.flatpak. Installed
-# from the bundle, it updates from the repository on capycal.app.
+# the single-file bundle dist/capycal-app-v<version>-<arch>.flatpak. The
+# bundle names no repository: it carries no key, so updates from there would
+# go unverified. Updates come through the signed .flatpakref.
 # Needs flatpak and flatpak-builder with the flathub remote (--user).
 # Usage: packaging/linux/build-flatpak.sh <arch>
 set -euo pipefail
@@ -33,8 +34,7 @@ flatpak-builder --user --arch="$arch" --default-branch=stable --force-clean --in
     --state-dir="$root/.flatpak-builder" --repo="$repo" \
     "$dist/flatpak-build-$arch" "$root/packaging/linux/flatpak/$id.yml"
 flatpak build-bundle --arch="$arch" "$repo" "$bundle" "$id" stable \
-    --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-    --repo-url=https://capycal.app/packages/flatpak/
+    --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
 cd "$dist"
 sha256sum "$(basename "$bundle")" >"$(basename "$bundle").sha256"
 echo "built $bundle"
