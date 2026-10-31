@@ -93,10 +93,32 @@ fn cache_dir() -> std::path::PathBuf {
     glib::user_cache_dir().join("capycal").join("icons")
 }
 
+/// The app ID when running as a Flatpak.
+pub fn flatpak_id() -> Option<String> {
+    std::env::var("FLATPAK_ID").ok().filter(|id| !id.is_empty())
+}
+
+/// The tray icon of `state`. A Flatpak exports only icons named after its ID
+/// and a dot, and the tray host outside the sandbox finds no others.
+pub fn tray_name(state: crate::menu::Icon, flatpak: Option<&str>) -> String {
+    use crate::menu::Icon;
+    let name = match state {
+        Icon::Ok => TRAY,
+        Icon::Error => TRAY_ERROR,
+        Icon::Syncing => TRAY_SYNCING,
+        Icon::Inactive => TRAY_INACTIVE,
+    };
+    match flatpak {
+        Some(id) => format!("{id}.{}", name.trim_start_matches("capycal-")),
+        None => name.to_string(),
+    }
+}
+
 /// Where a tray host looks for the tray icons. Empty when they are
 /// installed: GNOME's AppIndicator extension then searches only this path.
+/// A Flatpak's path is not visible outside, its icons are exported.
 pub fn tray_theme_path() -> String {
-    if installed() {
+    if installed() || flatpak_id().is_some() {
         String::new()
     } else {
         cache_dir().to_string_lossy().into_owned()
@@ -124,5 +146,41 @@ fn write(relative: &str, data: &[u8]) {
         && !theme.search_path().contains(&dir)
     {
         theme.add_search_path(&dir);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::menu::Icon;
+
+    #[test]
+    fn tray_names_carry_the_flatpak_id() {
+        let id = Some("app.capycal.Capycal");
+        for (state, native, flatpak) in [
+            (
+                Icon::Ok,
+                "capycal-tray-symbolic",
+                "app.capycal.Capycal.tray-symbolic",
+            ),
+            (
+                Icon::Error,
+                "capycal-tray-error-symbolic",
+                "app.capycal.Capycal.tray-error-symbolic",
+            ),
+            (
+                Icon::Syncing,
+                "capycal-tray-syncing-symbolic",
+                "app.capycal.Capycal.tray-syncing-symbolic",
+            ),
+            (
+                Icon::Inactive,
+                "capycal-tray-inactive-symbolic",
+                "app.capycal.Capycal.tray-inactive-symbolic",
+            ),
+        ] {
+            assert_eq!(tray_name(state, None), native);
+            assert_eq!(tray_name(state, id), flatpak);
+        }
     }
 }

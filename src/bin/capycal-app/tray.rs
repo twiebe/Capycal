@@ -25,6 +25,8 @@ struct CapycalTray {
     hosted: async_channel::Sender<bool>,
     /// Where the icons are when they are not installed.
     theme_path: String,
+    /// The app ID inside a Flatpak.
+    flatpak: Option<String>,
 }
 
 impl Tray {
@@ -44,9 +46,16 @@ impl Tray {
             actions,
             hosted,
             theme_path: icons::tray_theme_path(),
+            flatpak: icons::flatpak_id(),
         };
+        // A Flatpak may not own the item's well-known name; the unique one does
+        let in_flatpak = tray.flatpak.is_some();
         // The app may start before the desktop's panel at login
-        match tray.assume_sni_available(true).spawn() {
+        match tray
+            .disable_dbus_name(in_flatpak)
+            .assume_sni_available(true)
+            .spawn()
+        {
             Ok(handle) => Some(Self { handle }),
             Err(e) => {
                 error!(error = %e, "cannot create the tray icon");
@@ -90,13 +99,7 @@ impl ksni::Tray for CapycalTray {
     /// Symbolic icons, so the panel draws them in its own text color; the
     /// pixmap is the fallback for hosts that cannot find them.
     fn icon_name(&self) -> String {
-        match self.state {
-            Icon::Ok => icons::TRAY,
-            Icon::Error => icons::TRAY_ERROR,
-            Icon::Syncing => icons::TRAY_SYNCING,
-            Icon::Inactive => icons::TRAY_INACTIVE,
-        }
-        .to_string()
+        icons::tray_name(self.state, self.flatpak.as_deref())
     }
 
     fn icon_theme_path(&self) -> String {

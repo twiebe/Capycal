@@ -118,7 +118,9 @@ pub fn run(config_path: PathBuf) -> ExitCode {
     }
 
     // A second start activates the running instance instead
-    let application = adw::Application::builder().application_id(APP_ID).build();
+    // A Flatpak's windows belong to its desktop entry, named after its ID
+    let id = icons::flatpak_id().unwrap_or_else(|| APP_ID.to_string());
+    let application = adw::Application::builder().application_id(id).build();
     let state: Rc<RefCell<Option<Rc<RefCell<App>>>>> = Rc::default();
     let started = state.clone();
     // Startup runs once; it takes what the app needs
