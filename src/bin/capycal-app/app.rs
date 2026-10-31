@@ -813,6 +813,22 @@ impl App {
                     self.quit();
                     return;
                 }
+                settings_view::Reply::SetStartAtLogin(on) if icons::flatpak_id().is_some() => {
+                    let this = self.this.clone();
+                    autostart::request_background(on, &self.config_path, move |result| {
+                        if let Err(e) = result {
+                            error!(error = %e, "cannot change start at login");
+                            show_error("Start at Login", &e);
+                        }
+                        // The switch shows what the portal did
+                        defer(&this, |app| {
+                            if let Some(screen) = &mut app.settings {
+                                screen.set_app_info(autostart::is_enabled(), &app.config_path);
+                            }
+                            app.settings_replies(vec![settings_view::Reply::Show]);
+                        });
+                    });
+                }
                 settings_view::Reply::SetStartAtLogin(on) => {
                     if let Err(e) = autostart::set_enabled(on, &self.config_path) {
                         error!(error = %e, "cannot change start at login");
