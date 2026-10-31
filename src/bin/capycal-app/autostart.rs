@@ -112,6 +112,12 @@ pub fn portal_options(enabled: bool, config: &Path, token: &str) -> glib::Varian
     options.end()
 }
 
+/// The parameters of `RequestBackground`, `(sa{sv})`: no parent window and
+/// the options. A `Variant` in a tuple would become a boxed `v`.
+fn portal_parameters(enabled: bool, config: &Path, token: &str) -> glib::Variant {
+    glib::Variant::tuple_from_iter(["".to_variant(), portal_options(enabled, config, token)])
+}
+
 /// Ask the Background portal to start the Flatpak at login, or no longer.
 /// `done` gets the outcome once the desktop answered (it may ask the user).
 pub fn request_background(
@@ -164,7 +170,7 @@ pub fn request_background(
             "/org/freedesktop/portal/desktop",
             "org.freedesktop.portal.Background",
             "RequestBackground",
-            Some(&("", portal_options(enabled, &config, &token)).to_variant()),
+            Some(&portal_parameters(enabled, &config, &token)),
             None,
             gio::DBusCallFlags::NONE,
             -1,
@@ -221,6 +227,12 @@ mod tests {
             options.lookup::<String>("handle_token").unwrap().as_deref(),
             Some("capycal1")
         );
+    }
+
+    #[test]
+    fn test_portal_parameters_have_the_signature_of_request_background() {
+        let parameters = portal_parameters(true, Path::new("/c.toml"), "t");
+        assert_eq!(parameters.type_().as_str(), "(sa{sv})");
     }
 
     #[test]
