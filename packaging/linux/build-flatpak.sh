@@ -30,7 +30,10 @@ fi
 
 repo="$dist/flatpak-repo"
 bundle="$dist/capycal-app-v$version-$arch.flatpak"
+# Without rofiles-fuse: in a container (distrobox, toolbox) fusermount may not
+# mount it, and the build fails at its very end
 flatpak-builder --user --arch="$arch" --default-branch=stable --force-clean --install-deps-from=flathub \
+    --disable-rofiles-fuse \
     --state-dir="$root/.flatpak-builder" --repo="$repo" \
     "$dist/flatpak-build-$arch" "$root/packaging/linux/flatpak/$id.yml"
 flatpak build-bundle --arch="$arch" "$repo" "$bundle" "$id" stable \
