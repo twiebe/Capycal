@@ -13,36 +13,33 @@ use crate::settings_view::{
     PopupItem, SettingsInput, SettingsScreen, SettingsView, SidebarItem, steps_text,
 };
 
-const LABEL_WIDTH: i32 = 170;
 const DRAG_SVG: &[u8] = include_bytes!("icons/capycal-drag-symbolic.svg");
 const SIDEBAR_WIDTH: i32 = 200;
+/// The spacing scale of the UI guidelines.
+const GAP_S: i32 = 4;
+const GAP_M: i32 = 8;
+const GAP_L: i32 = 12;
 /// The column right of the pipeline steps that holds their drag handles.
 const GUTTER: i32 = 28;
 const CSS: &str = "
 .capycal-choice { padding: 10px 14px; }
 .capycal-choice:checked { box-shadow: inset 0 0 0 2px @accent_bg_color; background: alpha(@accent_bg_color, 0.1); color: @window_fg_color; }
-.capycal-row:checked { background: alpha(@accent_bg_color, 0.2); color: @window_fg_color; }
 .capycal-event { background: alpha(@accent_bg_color, 0.15); border-left: 3px solid @accent_bg_color; border-radius: 6px; padding: 4px 8px; }
 .capycal-steps { color: @accent_color; }
-.capycal-group { padding: 4px 12px; }
-.capycal-group > * { padding: 4px 0; }
 .capycal-icon { background: @accent_bg_color; color: @accent_fg_color; border-radius: 10px; padding: 8px; }
 .capycal-icon.off { background: alpha(@window_fg_color, 0.35); }
 .capycal-side-icon { background: @accent_bg_color; color: @accent_fg_color; border-radius: 6px; padding: 3px; }
 .capycal-side-icon.off { background: alpha(@window_fg_color, 0.35); }
 .capycal-side-icon.problem { background: #e66100; }
-.capycal-stage { padding: 6px 12px 8px 12px; }
-.capycal-any { padding: 6px 8px 8px 8px; border: 1px solid alpha(currentColor, 0.15); border-radius: 8px; }
 .capycal-stage:drop(active) { box-shadow: none; }
 .capycal-drop-mark { background: @accent_bg_color; min-height: 3px; border-radius: 2px; }
-.capycal-stage { transition: box-shadow 150ms ease-in-out; }
-.capycal-stage.active { box-shadow: inset 0 0 0 2px @accent_bg_color; }
+row.capycal-plain { padding: 8px 12px; }
+row.entry text > placeholder { color: alpha(currentColor, 0.5); }
+row.expander list.nested > row.capycal-drop-row, list.boxed-list > row.capycal-drop-row { min-height: 0; padding: 0 12px; border-bottom: none; }
+row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
+.capycal-stage > list { transition: outline-color 150ms ease-in-out; outline: 2px solid transparent; outline-offset: 0; }
+.capycal-stage.active > list { outline-color: @accent_bg_color; }
 .capycal-add-icon { color: @accent_color; }
-.capycal-chevron { color: alpha(@window_fg_color, 0.45); transition: transform 200ms ease-in-out; }
-.capycal-chevron.open { transform: rotate(90deg); }
-.capycal-fade { transition: opacity 200ms ease-in-out; }
-.capycal-fade.hidden { opacity: 0; }
-.capycal-condition { padding: 6px 4px 6px 8px; border-radius: 8px; background: alpha(currentColor, 0.04); }
 .capycal-join > button:first-child { border-top-left-radius: 999px; border-bottom-left-radius: 999px; padding-left: 14px; }
 .capycal-join > button:last-child { border-top-right-radius: 999px; border-bottom-right-radius: 999px; padding-right: 14px; }
 .capycal-round { border-radius: 999px; padding-left: 14px; padding-right: 14px; }
@@ -64,17 +61,21 @@ type SidebarSection<'a> = (&'a str, &'a [SidebarItem], fn(String) -> FieldId, bo
 enum Drawn {
     None,
     Label(gtk::Label),
+    /// A note shown as the subtitle of the row above it.
+    Subtitle(adw::ActionRow),
     /// A message with a warning sign, hidden while empty.
     Warning(gtk::Label),
     Text {
         entry: gtk::Editable,
         error: gtk::Label,
     },
-    Check(gtk::CheckButton),
-    Popup(gtk::DropDown, Vec<PopupItem>),
+    /// A switch row, or a row with a check box.
+    Check(adw::ActionRow, Option<gtk::CheckButton>),
+    Popup(adw::ComboRow, Vec<PopupItem>),
     Hero(gtk::Label, gtk::Label),
-    /// The toggle of each item; None for a header.
-    Choices(Vec<Option<gtk::ToggleButton>>),
+    /// The toggle (card) or check button (row) of each item; None for a
+    /// header.
+    Choices(Vec<Option<gtk::Widget>>),
     Header {
         title: Option<gtk::Label>,
         name: Option<(gtk::Entry, gtk::Label)>,
@@ -90,9 +91,7 @@ enum Drawn {
         copy: [gtk::Label; 4],
         copy_box: gtk::Box,
     },
-    TransformRow {
-        summary: gtk::Label,
-    },
+    TransformRow(adw::ExpanderRow),
     Footer(gtk::Label, gtk::Image, gtk::ProgressBar, Vec<gtk::Button>),
     Buttons(Vec<gtk::Button>),
     Disclosure(gtk::Button),
@@ -100,6 +99,29 @@ enum Drawn {
 
 /// A drop mark and the conditions it would leave where they are.
 type DropMark = (gtk::Widget, Vec<usize>);
+
+/// A part of the editor: its controls stacked, rows in boxed lists between
+/// the other widgets.
+struct Section {
+    outer: gtk::Box,
+    /// The list the next row goes into; another widget ends it.
+    list: Option<gtk::ListBox>,
+    /// The row a note after it describes.
+    last_row: Option<adw::ActionRow>,
+    /// In a group of the app's own settings, not a sync's step.
+    switches: bool,
+}
+
+impl Section {
+    fn new(outer: gtk::Box) -> Self {
+        Self {
+            outer,
+            list: None,
+            last_row: None,
+            switches: false,
+        }
+    }
+}
 
 pub struct SettingsWindow {
     window: adw::Window,
@@ -109,10 +131,14 @@ pub struct SettingsWindow {
     sidebar: gtk::Box,
     editor: gtk::Box,
     editor_scroll: gtk::ScrolledWindow,
-    /// The box new controls go into: the editor or an open group.
-    container: gtk::Box,
-    /// The boxes around an open `AnyOf` box or condition card.
-    outer: Vec<gtk::Box>,
+    /// Where new controls go: the editor, an open group or step.
+    section: Section,
+    /// The open transform the next controls go into, as rows.
+    expander: Option<adw::ExpanderRow>,
+    /// The condition being drawn: its first row still takes the handle.
+    condition: Option<(usize, bool)>,
+    /// True inside an `AnyOf` box.
+    any_of: bool,
     /// The column right of the stage being drawn, for its drag handle.
     gutter: Option<gtk::Box>,
     /// The open row the next text fields go into, side by side.
@@ -125,11 +151,8 @@ pub struct SettingsWindow {
     /// The box of each step, and the one worked in (it shows a ring).
     stages: Rc<RefCell<Vec<gtk::Box>>>,
     active_stage: Rc<Cell<Option<usize>>>,
-    /// The transform open in the last view, to turn the chevrons from.
+    /// The transform open in the last view: one opened since slides open.
     open_transform: Option<usize>,
-    /// The fields of a transform just opened, faded in after the rebuild.
-    revealing: bool,
-    reveal: Vec<gtk::Widget>,
     /// The column right of the editor that keeps the preview in view.
     aside: gtk::Box,
     banner: adw::Banner,
@@ -302,8 +325,10 @@ impl SettingsWindow {
             sidebar_pane,
             version,
             sidebar,
-            container: editor.clone(),
-            outer: Vec::new(),
+            section: Section::new(editor.clone()),
+            expander: None,
+            condition: None,
+            any_of: false,
             text_row: None,
             gutter: None,
             marks: Rc::new(RefCell::new(Vec::new())),
@@ -311,8 +336,6 @@ impl SettingsWindow {
             stages: Rc::new(RefCell::new(Vec::new())),
             active_stage: Rc::new(Cell::new(None)),
             open_transform: None,
-            revealing: false,
-            reveal: Vec::new(),
             editor,
             editor_scroll,
             aside,
@@ -406,15 +429,15 @@ impl SettingsWindow {
             }
         }
         self.retired = retired;
-        self.container = self.editor.clone();
-        self.outer.clear();
+        self.section = Section::new(self.editor.clone());
+        self.expander = None;
+        self.condition = None;
+        self.any_of = false;
         self.gutter = None;
         self.text_row = None;
         self.marks.borrow_mut().clear();
         self.condition_marks.borrow_mut().clear();
         self.stages.borrow_mut().clear();
-        self.revealing = false;
-        self.reveal.clear();
         self.drawn.clear();
         self.sidebar_entries.clear();
         self.banner.set_title(view.banner.as_deref().unwrap_or(""));
@@ -440,19 +463,6 @@ impl SettingsWindow {
         for control in &view.controls {
             let drawn = self.draw(control, was_open);
             self.drawn.push(drawn);
-        }
-        // A transform just opened: its fields fade in
-        if open.is_some() && open != was_open {
-            for widget in &self.reveal {
-                widget.add_css_class("capycal-fade");
-                widget.add_css_class("hidden");
-            }
-            let reveal = self.reveal.clone();
-            glib::idle_add_local_once(move || {
-                for widget in reveal {
-                    widget.remove_css_class("hidden");
-                }
-            });
         }
         self.open_transform = open;
         // GTK would focus the first field and select its text, where a key
@@ -643,13 +653,65 @@ impl SettingsWindow {
             }
             true
         });
-        self.container.add_controller(target);
+        self.section.outer.add_controller(target);
     }
 
-    fn append(&mut self, widget: &impl IsA<gtk::Widget>) {
-        self.container.append(widget);
-        if self.revealing {
-            self.reveal.push(widget.clone().upcast());
+    /// Put `row` into the open transform, or else into the section's list,
+    /// which starts with it if another widget came last.
+    fn add_row<R: IsA<gtk::ListBoxRow> + IsA<gtk::Widget>>(&mut self, row: &R) {
+        let row: &gtk::ListBoxRow = row.upcast_ref();
+        if self.any_of {
+            row.add_css_class("capycal-any");
+        }
+        // A condition's rows line up behind the handle of its first one
+        if let Some((index, first)) = self.condition {
+            let prefix = if first {
+                self.condition = Some((index, false));
+                condition_handle(index, row.upcast_ref::<gtk::Widget>())
+            } else {
+                gtk::Box::builder().width_request(16).build().upcast()
+            };
+            if let Some(r) = row.dynamic_cast_ref::<adw::ActionRow>() {
+                r.add_prefix(&prefix);
+            } else if let Some(r) = row.dynamic_cast_ref::<adw::EntryRow>() {
+                r.add_prefix(&prefix);
+            }
+        }
+        if let Some(expander) = &self.expander {
+            expander.add_row(row);
+        } else {
+            let outer = &self.section.outer;
+            let list = self.section.list.get_or_insert_with(|| {
+                let list = gtk::ListBox::builder()
+                    .selection_mode(gtk::SelectionMode::None)
+                    .css_classes(["boxed-list"])
+                    .build();
+                outer.append(&list);
+                list
+            });
+            list.append(row);
+        }
+        self.section.last_row = row.dynamic_cast_ref::<adw::ActionRow>().cloned();
+    }
+
+    /// Put a widget that is no row below the rows before it; in an open
+    /// transform it becomes a row of its own.
+    fn add_widget(&mut self, widget: &impl IsA<gtk::Widget>) {
+        if self.expander.is_some() {
+            self.add_row(&plain_row(widget));
+        } else {
+            self.section.list = None;
+            self.section.last_row = None;
+            self.section.outer.append(widget);
+        }
+    }
+
+    /// A widget inside a list as a row of its own, else below it.
+    fn add_inline(&mut self, widget: &impl IsA<gtk::Widget>) {
+        if self.section.list.is_some() {
+            self.add_row(&plain_row(widget));
+        } else {
+            self.add_widget(widget);
         }
     }
 
@@ -663,31 +725,30 @@ impl SettingsWindow {
         self.editor.append(&row);
     }
 
-    fn row(&mut self, label: &str, control: &impl IsA<gtk::Widget>) {
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        let label = gtk::Label::builder()
-            .label(label)
-            .xalign(0.0)
-            .width_request(LABEL_WIDTH)
-            .build();
-        row.append(&label);
-        control.set_hexpand(true);
-        row.append(control);
-        self.append(&row);
+    /// A row titled `label` with `control` at its end.
+    fn suffix_row(&mut self, label: &str, control: &impl IsA<gtk::Widget>) -> adw::ActionRow {
+        let row = adw::ActionRow::builder().title(label).build();
+        control.set_valign(gtk::Align::Center);
+        row.add_suffix(control);
+        self.add_row(&row);
+        row
     }
 
-    fn label(&mut self, text: &str, class: Option<&str>) -> gtk::Label {
+    /// A note: the subtitle of the row above it, else a line of its own.
+    fn note(&mut self, text: &str) -> Drawn {
+        if let Some(row) = self.section.last_row.clone() {
+            row.set_subtitle(text);
+            return Drawn::Subtitle(row);
+        }
         let label = gtk::Label::builder()
             .label(text)
             .xalign(0.0)
             .wrap(true)
-            .visible(!text.is_empty() || class.is_some_and(|c| c != "dim-label"))
+            .css_classes(["dim-label"])
             .build();
-        if let Some(class) = class {
-            label.add_css_class(class);
-        }
-        self.append(&label);
-        label
+        self.add_inline(&label);
+        set_shown(&label, !text.is_empty());
+        Drawn::Label(label)
     }
 
     fn button(&self, (id, title, enabled): &ButtonSpec) -> gtk::Button {
@@ -702,11 +763,12 @@ impl SettingsWindow {
                     .build(),
             ));
         }
-        // Moving a condition is mostly a drag: its buttons are small arrows,
-        // the title stays their accessibility label and tooltip
+        // A condition's buttons are small icons, like a step's: moving is
+        // mostly a drag; the title stays their accessibility label and tooltip
         let arrow = match id {
             FieldId::ConditionMoveUp(_) => Some("go-up-symbolic"),
             FieldId::ConditionMoveDown(_) => Some("go-down-symbolic"),
+            FieldId::ConditionRemove(_) => Some("user-trash-symbolic"),
             _ => None,
         };
         if let Some(icon) = arrow {
@@ -734,42 +796,38 @@ impl SettingsWindow {
     fn draw(&mut self, control: &Control, was_open: Option<usize>) -> Drawn {
         let send = self.sender();
         match control {
-            Control::Note(text) => Drawn::Label(self.label(text, Some("dim-label"))),
+            Control::Note(text) => self.note(text),
             Control::Error(text) => {
-                let label = self.label("", None);
+                let label = gtk::Label::builder().xalign(0.0).wrap(true).build();
+                self.add_inline(&label);
                 show_warning(&label, Some(text.as_str()).filter(|t| !t.is_empty()));
                 Drawn::Warning(label)
             }
             Control::Group(title) => {
                 let steps = !self.stages.borrow().is_empty();
-                if !title.is_empty() {
-                    self.editor.append(
-                        &gtk::Label::builder()
-                            .label(title)
-                            .xalign(0.0)
-                            .css_classes(["heading"])
-                            .margin_top(10)
-                            .build(),
-                    );
-                }
                 let group = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
-                    .css_classes(["card", "capycal-group"])
+                    .spacing(GAP_L)
+                    .margin_top(GAP_L)
                     .build();
+                if !title.is_empty() {
+                    group.append(&section_title(title));
+                }
                 // Below a sync's steps, as wide as they are
                 if steps {
                     self.append_with_gutter(&group);
                 } else {
                     self.editor.append(&group);
                 }
-                self.container = group;
+                self.section = Section::new(group);
+                self.section.switches = !steps;
                 Drawn::None
             }
             Control::Stage { label, .. } => {
                 let stage = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
-                    .spacing(6)
-                    .css_classes(["card", "capycal-stage"])
+                    .spacing(GAP_M)
+                    .css_classes(["capycal-stage"])
                     .build();
                 // The step worked in shows a ring: focus in it or a click
                 let index = self.stages.borrow().len();
@@ -799,30 +857,24 @@ impl SettingsWindow {
                 click.connect_pressed(move |_, _, _, _| activate());
                 stage.add_controller(click);
                 self.stages.borrow_mut().push(stage.clone());
-                stage.append(
-                    &gtk::Label::builder()
-                        .label(label.as_str())
-                        .xalign(0.0)
-                        .css_classes(["caption-heading", "dim-label"])
-                        .build(),
-                );
+                stage.append(&section_title(label));
                 stage.set_hexpand(true);
                 let gutter = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
                     .width_request(GUTTER)
                     .valign(gtk::Align::Center)
                     .build();
-                let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+                let row = gtk::Box::new(gtk::Orientation::Horizontal, GAP_S);
                 row.append(&stage);
                 row.append(&gutter);
                 self.editor.append(&row);
                 self.gutter = Some(gutter);
-                self.container = stage;
+                self.section = Section::new(stage);
                 Drawn::None
             }
             Control::Row(label) => {
-                let fields = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-                self.row(label, &fields);
+                let fields = gtk::Box::new(gtk::Orientation::Horizontal, GAP_M);
+                self.suffix_row(label, &fields);
                 self.text_row = Some(fields);
                 Drawn::None
             }
@@ -831,26 +883,21 @@ impl SettingsWindow {
                 Drawn::None
             }
             Control::AnyOf(label) => {
-                let any = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Vertical)
-                    .spacing(6)
-                    .css_classes(["capycal-any"])
+                let caption = gtk::Label::builder()
+                    .label(label.as_str())
+                    .xalign(0.0)
+                    .css_classes(["caption-heading", "dim-label"])
                     .build();
-                any.append(
-                    &gtk::Label::builder()
-                        .label(label.as_str())
-                        .xalign(0.0)
-                        .css_classes(["caption-heading", "dim-label"])
-                        .build(),
-                );
-                self.append(&any);
-                self.outer.push(std::mem::replace(&mut self.container, any));
+                self.any_of = true;
+                self.add_widget(&caption);
                 Drawn::None
             }
-            Control::AnyOfEnd | Control::ConditionEnd => {
-                if let Some(outer) = self.outer.pop() {
-                    self.container = outer;
-                }
+            Control::AnyOfEnd => {
+                self.any_of = false;
+                Drawn::None
+            }
+            Control::ConditionEnd => {
+                self.condition = None;
                 Drawn::None
             }
             Control::DropMark { slot, stays } => {
@@ -865,55 +912,23 @@ impl SettingsWindow {
                     .css_classes(["capycal-drop-mark"])
                     .opacity(0.0)
                     .build();
-                self.append(&mark);
+                let row = plain_row(&mark);
+                row.add_css_class("capycal-drop-row");
+                self.add_row(&row);
                 self.condition_marks
                     .borrow_mut()
                     .push((mark.upcast(), stays.clone()));
                 Drawn::None
             }
             Control::Condition(id) => {
-                let FieldId::Condition(index) = *id else {
-                    return Drawn::None;
-                };
-                let card = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Horizontal)
-                    .spacing(4)
-                    .css_classes(["capycal-condition"])
-                    .build();
-                let content = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Vertical)
-                    .spacing(6)
-                    .hexpand(true)
-                    .build();
-                card.append(&content);
-                let handle = gtk::Image::builder()
-                    .icon_name(crate::icons::symbolic("drag", DRAG_SVG))
-                    .tooltip_text("Drag to move")
-                    .valign(gtk::Align::Center)
-                    .css_classes(["dim-label"])
-                    .build();
-                handle.update_property(&[gtk::accessible::Property::Label("Drag to move")]);
-                let source = gtk::DragSource::builder()
-                    .actions(gtk::gdk::DragAction::MOVE)
-                    .build();
-                let from = index as u64;
-                source.connect_prepare(move |_, _, _| {
-                    Some(gtk::gdk::ContentProvider::for_value(&from.to_value()))
-                });
-                let dragged = card.clone();
-                source.connect_drag_begin(move |source, _| {
-                    source.set_icon(Some(&gtk::WidgetPaintable::new(Some(&dragged))), 0, 0);
-                });
-                handle.add_controller(source);
-                card.append(&handle);
-                self.append(&card);
-                self.outer
-                    .push(std::mem::replace(&mut self.container, content));
+                if let FieldId::Condition(index) = *id {
+                    self.condition = Some((index, true));
+                }
                 Drawn::None
             }
             Control::GroupEnd => {
-                self.container = self.editor.clone();
-                self.revealing = false;
+                self.section = Section::new(self.editor.clone());
+                self.expander = None;
                 Drawn::None
             }
             Control::Joint { id, items } => {
@@ -1104,7 +1119,7 @@ impl SettingsWindow {
                 if switch.is_some() {
                     self.append_with_gutter(&row);
                 } else {
-                    self.append(&row);
+                    self.add_widget(&row);
                 }
                 Drawn::Header {
                     title: title_label,
@@ -1147,10 +1162,9 @@ impl SettingsWindow {
                     toggles.push(b);
                 }
                 if label.is_empty() {
-                    self.append(&row);
+                    self.add_widget(&row);
                 } else {
-                    self.row(label, &row);
-                    row.set_halign(gtk::Align::Start);
+                    self.suffix_row(label, &row);
                 }
                 Drawn::Segments(toggles)
             }
@@ -1212,7 +1226,6 @@ impl SettingsWindow {
                 summary,
                 open,
             } => {
-                let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
                 // The handle drags the step; dropped on another step it goes
                 // before or after that one
                 let handle = gtk::Image::builder()
@@ -1227,14 +1240,18 @@ impl SettingsWindow {
                 source.connect_prepare(move |_, _, _| {
                     Some(gtk::gdk::ContentProvider::for_value(&from.to_value()))
                 });
-                let stage = self.container.clone();
+                let stage = self.section.outer.clone();
                 source.connect_drag_begin(move |source, _| {
                     source.set_icon(Some(&gtk::WidgetPaintable::new(Some(&stage))), 0, 0);
                 });
                 handle.add_controller(source);
+                let expander = adw::ExpanderRow::builder()
+                    .title(summary)
+                    .use_markup(false)
+                    .build();
                 match &self.gutter {
                     Some(gutter) => gutter.append(&handle),
-                    None => row.append(&handle),
+                    None => expander.add_prefix(&handle),
                 }
                 let target = gtk::DropTarget::new(u32::static_type(), gtk::gdk::DragAction::MOVE);
                 target.set_preload(true);
@@ -1282,50 +1299,14 @@ impl SettingsWindow {
                     ));
                     true
                 });
-                self.container.add_controller(target);
-                let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-                content.append(
+                self.section.outer.add_controller(target);
+                expander.add_prefix(
                     &gtk::Label::builder()
                         .label((index + 1).to_string())
+                        .valign(gtk::Align::Center)
                         .css_classes(["capycal-number"])
                         .build(),
                 );
-                let summary_label = gtk::Label::builder()
-                    .label(summary)
-                    .xalign(0.0)
-                    .hexpand(true)
-                    .wrap(true)
-                    .build();
-                content.append(&summary_label);
-                // One chevron, turned down while open; it turns from where
-                // it pointed before
-                let chevron = gtk::Image::builder()
-                    .icon_name("pan-end-symbolic")
-                    .css_classes(["capycal-chevron"])
-                    .build();
-                if was_open == Some(*index) {
-                    chevron.add_css_class("open");
-                }
-                if *open != (was_open == Some(*index)) {
-                    let (chevron, open) = (chevron.clone(), *open);
-                    glib::idle_add_local_once(move || {
-                        if open {
-                            chevron.add_css_class("open");
-                        } else {
-                            chevron.remove_css_class("open");
-                        }
-                    });
-                }
-                content.append(&chevron);
-                let toggle = gtk::Button::builder()
-                    .child(&content)
-                    .css_classes(["flat"])
-                    .hexpand(true)
-                    .build();
-                let id = FieldId::TransformRow(*index);
-                let s = send.clone();
-                toggle.connect_clicked(move |_| s(SettingsInput::Pressed(id.clone())));
-                row.append(&toggle);
                 let remove = gtk::Button::builder()
                     .icon_name("user-trash-symbolic")
                     .tooltip_text("Remove")
@@ -1335,14 +1316,29 @@ impl SettingsWindow {
                 let id = FieldId::TransformRowRemove(*index);
                 let s = send.clone();
                 remove.connect_clicked(move |_| s(SettingsInput::Pressed(id.clone())));
-                row.append(&remove);
+                expander.add_suffix(&remove);
+                // One just opened slides open
+                let opened = *open && was_open != Some(*index);
+                expander.set_expanded(*open && !opened);
+                if opened {
+                    let (e, updating) = (expander.downgrade(), self.updating.clone());
+                    glib::idle_add_local_once(move || {
+                        if let Some(e) = e.upgrade() {
+                            updating.set(true);
+                            e.set_expanded(true);
+                            updating.set(false);
+                        }
+                    });
+                }
+                let id = FieldId::TransformRow(*index);
+                let s = send.clone();
+                expander.connect_expanded_notify(move |_| s(SettingsInput::Pressed(id.clone())));
                 // For screen readers and the keyboard: what the row is, and
                 // a menu that moves it without dragging
                 let step = index + 1;
-                toggle.update_property(&[gtk::accessible::Property::Label(&format!(
-                    "Step {step}: {summary}, {}",
-                    if *open { "open" } else { "closed" }
-                ))]);
+                expander.upcast_ref::<gtk::Widget>().update_property(&[
+                    gtk::accessible::Property::Label(&format!("Step {step}: {summary}")),
+                ]);
                 remove.update_property(&[gtk::accessible::Property::Label(&format!(
                     "Remove step {step}"
                 ))]);
@@ -1351,7 +1347,7 @@ impl SettingsWindow {
                 ))]);
                 let at = *index;
                 step_menu(
-                    &toggle,
+                    &expander,
                     [
                         (
                             "Move Up",
@@ -1368,12 +1364,10 @@ impl SettingsWindow {
                     ],
                     send,
                 );
-                self.append(&row);
+                self.add_row(&expander);
                 // The fields that follow an open row belong to it
-                self.revealing = *open;
-                Drawn::TransformRow {
-                    summary: summary_label,
-                }
+                self.expander = Some(expander.clone());
+                Drawn::TransformRow(expander)
             }
             Control::Text {
                 id,
@@ -1385,40 +1379,39 @@ impl SettingsWindow {
                 enabled,
                 suggestions,
             } => {
-                let entry: gtk::Editable = if *secure {
-                    let e = gtk::PasswordEntry::builder()
-                        .show_peek_icon(true)
-                        .placeholder_text(placeholder)
-                        .build();
-                    e.upcast()
-                } else {
-                    let e = gtk::Entry::builder().placeholder_text(placeholder).build();
-                    if !suggestions.is_empty() {
-                        suggestion_menu(&e, suggestions);
-                    }
-                    e.upcast()
+                let send_text = send.clone();
+                let id_text = id.clone();
+                let changed = move |e: &gtk::Editable| {
+                    send_text(SettingsInput::Text(id_text.clone(), e.text().to_string()))
                 };
+                let entry: gtk::Editable = if let Some(fields) = &self.text_row {
+                    // A short field with its label after it
+                    let e = gtk::Entry::builder()
+                        .placeholder_text(placeholder)
+                        .width_chars(5)
+                        .build();
+                    fields.append(&e);
+                    fields.append(&gtk::Label::builder().label(label).margin_end(GAP_L).build());
+                    e.upcast()
+                } else if *secure {
+                    let row = adw::PasswordEntryRow::builder().title(label).build();
+                    self.add_row(&row);
+                    row.upcast()
+                } else {
+                    let row = adw::EntryRow::builder().title(label).build();
+                    if !suggestions.is_empty() {
+                        suggestion_button(&row, suggestions);
+                    }
+                    self.add_row(&row);
+                    row.upcast()
+                };
+                set_placeholder(&entry, placeholder);
                 entry.set_text(value);
                 entry.set_sensitive(*enabled);
-                report_leave(&entry, id, send.clone());
-                let id = id.clone();
-                entry.connect_changed(move |e| {
-                    send(SettingsInput::Text(id.clone(), e.text().to_string()))
-                });
-                if let Some(fields) = &self.text_row {
-                    // A short field with its label after it
-                    entry.set_width_chars(5);
-                    fields.append(&entry);
-                    let after = gtk::Label::builder().label(label).margin_end(12).build();
-                    fields.append(&after);
-                } else {
-                    self.row(label, &entry);
-                }
-                let error_label = self.label("", None);
-                if self.text_row.is_none() {
-                    // Under the field, after its label
-                    error_label.set_margin_start(LABEL_WIDTH + 12);
-                }
+                report_leave(&entry, id, send);
+                entry.connect_changed(changed);
+                let error_label = gtk::Label::builder().xalign(0.0).wrap(true).build();
+                self.add_inline(&error_label);
                 show_warning(&error_label, error.as_deref());
                 Drawn::Text {
                     entry,
@@ -1431,15 +1424,33 @@ impl SettingsWindow {
                 on,
                 hint,
             } => {
-                let check = gtk::CheckButton::with_label(label);
-                check.set_active(*on);
-                check.set_tooltip_text(hint.as_deref());
                 let id = id.clone();
+                if self.section.switches {
+                    let row = adw::SwitchRow::builder().title(label).active(*on).build();
+                    row.set_tooltip_text(hint.as_deref());
+                    row.connect_active_notify(move |r| {
+                        send(SettingsInput::Toggled(id.clone(), r.is_active()))
+                    });
+                    self.add_row(&row);
+                    return Drawn::Check(row.upcast(), None);
+                }
+                let check = gtk::CheckButton::builder()
+                    .active(*on)
+                    .valign(gtk::Align::Center)
+                    .build();
                 check.connect_toggled(move |c| {
                     send(SettingsInput::Toggled(id.clone(), c.is_active()))
                 });
-                self.append(&check);
-                Drawn::Check(check)
+                check.update_property(&[gtk::accessible::Property::Label(label)]);
+                let row = adw::ActionRow::builder()
+                    .title(label)
+                    .use_markup(false)
+                    .activatable_widget(&check)
+                    .build();
+                row.set_tooltip_text(hint.as_deref());
+                row.add_prefix(&check);
+                self.add_row(&row);
+                Drawn::Check(row, Some(check))
             }
             Control::Popup {
                 id,
@@ -1448,30 +1459,26 @@ impl SettingsWindow {
                 selected,
                 buttons,
             } => {
-                let titles = popup_titles(items);
-                let titles: Vec<&str> = titles.iter().map(String::as_str).collect();
-                let dropdown = gtk::DropDown::from_strings(&titles);
-                dropdown.set_selected(selected.map_or(gtk::INVALID_LIST_POSITION, |s| s as u32));
+                let row = adw::ComboRow::builder().title(label).build();
+                combo_items(&row, items);
+                row.set_selected(selected.map_or(gtk::INVALID_LIST_POSITION, |s| s as u32));
                 let id = id.clone();
-                dropdown.connect_selected_notify(move |d| {
+                row.connect_selected_notify(move |d| {
                     let index = d.selected();
                     if index != gtk::INVALID_LIST_POSITION {
                         send(SettingsInput::Chose(id.clone(), index as usize, None));
                     }
                 });
-                let line = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-                dropdown.set_hexpand(true);
-                line.append(&dropdown);
                 for spec in buttons {
-                    line.append(&self.button(spec));
+                    let b = self.button(spec);
+                    b.set_valign(gtk::Align::Center);
+                    if b.icon_name().is_some() {
+                        b.add_css_class("flat");
+                    }
+                    row.add_suffix(&b);
                 }
-                if label.is_empty() {
-                    line.set_halign(gtk::Align::Start);
-                    self.append(&line);
-                } else {
-                    self.row(label, &line);
-                }
-                Drawn::Popup(dropdown, items.clone())
+                self.add_row(&row);
+                Drawn::Popup(row, items.clone())
             }
             Control::Hero { image, title, text } => {
                 if let Some(image) = image {
@@ -1487,7 +1494,7 @@ impl SettingsWindow {
                     if *image == HeroImage::Done {
                         image_widget.add_css_class("success");
                     }
-                    self.append(&image_widget);
+                    self.add_widget(&image_widget);
                 }
                 let title = gtk::Label::builder()
                     .label(title)
@@ -1503,8 +1510,8 @@ impl SettingsWindow {
                     .css_classes(["dim-label"])
                     .margin_bottom(6)
                     .build();
-                self.append(&title);
-                self.append(&text);
+                self.add_widget(&title);
+                self.add_widget(&text);
                 Drawn::Hero(title, text)
             }
             Control::Steps { current, count } => Drawn::Label({
@@ -1512,7 +1519,7 @@ impl SettingsWindow {
                     .label(steps_text(*current, *count))
                     .css_classes(["capycal-steps"])
                     .build();
-                self.append(&label);
+                self.add_widget(&label);
                 label
             }),
             Control::Choices {
@@ -1523,31 +1530,77 @@ impl SettingsWindow {
             } => {
                 let list = gtk::Box::new(
                     gtk::Orientation::Vertical,
-                    if *style == ChoiceStyle::Cards { 8 } else { 2 },
+                    if *style == ChoiceStyle::Cards {
+                        GAP_M
+                    } else {
+                        GAP_S
+                    },
                 );
                 let mut toggles = Vec::new();
+                // Rows: a boxed list under each header, a radio button each
+                let mut rows: Option<gtk::ListBox> = None;
+                let mut first: Option<gtk::CheckButton> = None;
                 for (i, item) in items.iter().enumerate() {
                     if item.header {
-                        list.append(
-                            &gtk::Label::builder()
-                                .label(&item.title)
-                                .xalign(0.0)
-                                .css_classes(["caption-heading", "dim-label"])
-                                .margin_top(8)
-                                .build(),
-                        );
+                        list.append(&section_title(&item.title));
+                        rows = None;
                         toggles.push(None);
                         continue;
                     }
-                    let b = choice_button(item, *style);
-                    b.set_active(*selected == Some(i));
-                    let send = send.clone();
-                    let id = id.clone();
-                    b.connect_clicked(move |_| send(SettingsInput::Selected(id.clone(), i)));
-                    list.append(&b);
-                    toggles.push(Some(b));
+                    let select = {
+                        let (send, id) = (send.clone(), id.clone());
+                        move || send(SettingsInput::Selected(id.clone(), i))
+                    };
+                    if *style == ChoiceStyle::Cards {
+                        let b = choice_button(item);
+                        b.set_active(*selected == Some(i));
+                        b.connect_clicked(move |_| select());
+                        list.append(&b);
+                        toggles.push(Some(b.upcast()));
+                        continue;
+                    }
+                    let check = gtk::CheckButton::builder()
+                        .active(*selected == Some(i))
+                        .valign(gtk::Align::Center)
+                        .build();
+                    check.update_property(&[gtk::accessible::Property::Label(&item.title)]);
+                    check.set_group(first.as_ref());
+                    first.get_or_insert_with(|| check.clone());
+                    check.connect_toggled(move |c| {
+                        if c.is_active() {
+                            select();
+                        }
+                    });
+                    let row = adw::ActionRow::builder()
+                        .title(&item.title)
+                        .subtitle(&item.detail)
+                        .use_markup(false)
+                        .activatable_widget(&check)
+                        .sensitive(item.enabled)
+                        .build();
+                    row.add_prefix(&check);
+                    if let Some(hint) = &item.hint {
+                        row.add_suffix(
+                            &gtk::Label::builder()
+                                .label(hint)
+                                .valign(gtk::Align::Center)
+                                .css_classes(["caption", "capycal-tag"])
+                                .build(),
+                        );
+                    }
+                    rows.get_or_insert_with(|| {
+                        let rows = gtk::ListBox::builder()
+                            .selection_mode(gtk::SelectionMode::None)
+                            .css_classes(["boxed-list"])
+                            .margin_bottom(GAP_M)
+                            .build();
+                        list.append(&rows);
+                        rows
+                    })
+                    .append(&row);
+                    toggles.push(Some(check.upcast()));
                 }
-                self.append(&list);
+                self.add_widget(&list);
                 Drawn::Choices(toggles)
             }
             Control::Footer {
@@ -1585,7 +1638,7 @@ impl SettingsWindow {
                 let row = gtk::Box::builder()
                     .orientation(gtk::Orientation::Horizontal)
                     .spacing(6)
-                    .halign(if self.container == self.editor {
+                    .halign(if self.section.outer == self.editor {
                         gtk::Align::Start
                     } else {
                         gtk::Align::End
@@ -1597,7 +1650,7 @@ impl SettingsWindow {
                     row.append(&b);
                     drawn.push(b);
                 }
-                self.append(&row);
+                self.add_widget(&row);
                 Drawn::Buttons(drawn)
             }
             Control::Disclosure { id, label, open } => {
@@ -1620,7 +1673,7 @@ impl SettingsWindow {
                 row.append(&line());
                 row.set_margin_top(6);
                 if self.stages.borrow().is_empty() {
-                    self.append(&row);
+                    self.add_widget(&row);
                 } else {
                     self.append_with_gutter(&row);
                 }
@@ -1653,8 +1706,9 @@ impl SettingsWindow {
                 }
                 (Control::Note(t), Drawn::Label(l)) => {
                     l.set_label(t);
-                    l.set_visible(!t.is_empty());
+                    set_shown(l, !t.is_empty());
                 }
+                (Control::Note(t), Drawn::Subtitle(row)) => row.set_subtitle(t),
                 (
                     Control::Text {
                         value,
@@ -1674,16 +1728,19 @@ impl SettingsWindow {
                     } else {
                         set_unless_focused(entry, value);
                     }
-                    if let Some(e) = entry.downcast_ref::<gtk::Entry>() {
-                        e.set_placeholder_text(Some(placeholder));
-                    } else if let Some(e) = entry.downcast_ref::<gtk::PasswordEntry>() {
-                        e.set_placeholder_text(Some(placeholder));
-                    }
+                    set_placeholder(entry, placeholder);
                     show_warning(e, error.as_deref());
                 }
-                (Control::Check { on, label, .. }, Drawn::Check(c)) => {
-                    c.set_label(Some(label));
-                    c.set_active(*on);
+                (Control::Check { on, label, .. }, Drawn::Check(row, check)) => {
+                    row.set_title(label);
+                    match check {
+                        Some(check) => check.set_active(*on),
+                        None => {
+                            if let Some(s) = row.downcast_ref::<adw::SwitchRow>() {
+                                s.set_active(*on);
+                            }
+                        }
+                    }
                 }
                 (
                     Control::Popup {
@@ -1692,9 +1749,7 @@ impl SettingsWindow {
                     Drawn::Popup(d, shown),
                 ) => {
                     if items != shown {
-                        let titles = popup_titles(items);
-                        let titles: Vec<&str> = titles.iter().map(String::as_str).collect();
-                        d.set_model(Some(&gtk::StringList::new(&titles)));
+                        combo_items(d, items);
                         *shown = items.clone();
                     }
                     d.set_selected(selected.map_or(gtk::INVALID_LIST_POSITION, |s| s as u32));
@@ -1758,8 +1813,8 @@ impl SettingsWindow {
                     fill_event(copy, copy_label, c.as_ref());
                     copy_box.set_opacity(if c.is_some() { 1.0 } else { 0.6 });
                 }
-                (Control::TransformRow { summary: text, .. }, Drawn::TransformRow { summary }) => {
-                    summary.set_label(text)
+                (Control::TransformRow { summary, .. }, Drawn::TransformRow(row)) => {
+                    row.set_title(summary)
                 }
                 (
                     Control::Footer {
@@ -1796,7 +1851,15 @@ impl SettingsWindow {
                 }
                 (Control::Choices { selected, .. }, Drawn::Choices(toggles)) => {
                     for (j, b) in toggles.iter().enumerate() {
-                        if let Some(b) = b {
+                        if let Some(b) = b
+                            .as_ref()
+                            .and_then(|b| b.downcast_ref::<gtk::ToggleButton>())
+                        {
+                            b.set_active(*selected == Some(j));
+                        } else if let Some(b) = b
+                            .as_ref()
+                            .and_then(|b| b.downcast_ref::<gtk::CheckButton>())
+                        {
                             b.set_active(*selected == Some(j));
                         }
                     }
@@ -1890,8 +1953,8 @@ fn fill_event(labels: &[gtk::Label; 4], caption: &str, event: Option<&EventPrevi
 }
 
 /// A choice as a toggle: a card with icon, title, a line below and the
-/// preview of an event, or a plain row with a hint.
-fn choice_button(item: &Choice, style: ChoiceStyle) -> gtk::ToggleButton {
+/// preview of an event.
+fn choice_button(item: &Choice) -> gtk::ToggleButton {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     if let Some(icon) = item.icon {
         let name = match icon {
@@ -1908,15 +1971,13 @@ fn choice_button(item: &Choice, style: ChoiceStyle) -> gtk::ToggleButton {
     }
     let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
     text.set_hexpand(true);
-    // A row's hint sits in its middle, like the title
-    if style == ChoiceStyle::Rows {
-        text.set_valign(gtk::Align::Center);
-    }
-    let title = gtk::Label::builder().label(&item.title).xalign(0.0).build();
-    if style == ChoiceStyle::Cards {
-        title.add_css_class("heading");
-    }
-    text.append(&title);
+    text.append(
+        &gtk::Label::builder()
+            .label(&item.title)
+            .xalign(0.0)
+            .css_classes(["heading"])
+            .build(),
+    );
     if !item.detail.is_empty() {
         text.append(
             &gtk::Label::builder()
@@ -1945,30 +2006,123 @@ fn choice_button(item: &Choice, style: ChoiceStyle) -> gtk::ToggleButton {
         }
         content.append(&hint);
     }
-    let classes: &[&str] = match style {
-        ChoiceStyle::Cards => &["card", "capycal-choice"],
-        ChoiceStyle::Rows => &["flat", "capycal-row"],
-    };
     gtk::ToggleButton::builder()
         .child(&content)
-        .css_classes(classes.to_vec())
+        .css_classes(["card", "capycal-choice"])
         .sensitive(item.enabled)
         .build()
 }
 
-/// Dropdown titles: calendars indented under their group, a read-only one
-/// marked, since a dropdown cannot grey out single items.
-fn popup_titles(items: &[PopupItem]) -> Vec<String> {
-    items
+/// The items of a combo row: calendars indented under their group, which
+/// cannot be chosen; a read-only one marked, since a dropdown cannot grey
+/// out single items.
+fn combo_items(row: &adw::ComboRow, items: &[PopupItem]) {
+    let titles: Vec<String> = items
         .iter()
-        .map(|item| {
-            let indent = if item.header { "" } else { "    " };
-            match (&item.hint, item.enabled) {
-                (Some(hint), false) => format!("{indent}{} ({})", item.title, hint.to_lowercase()),
-                _ => format!("{indent}{}", item.title),
+        .map(|item| match (&item.hint, item.enabled) {
+            (Some(hint), false) if !item.header => {
+                format!("{} ({})", item.title, hint.to_lowercase())
             }
+            _ => item.title.clone(),
         })
-        .collect()
+        .collect();
+    let headers: Vec<bool> = items.iter().map(|i| i.header).collect();
+    let grouped = headers.contains(&true);
+    let factory = gtk::SignalListItemFactory::new();
+    factory.connect_setup(|_, item| {
+        if let Some(item) = item.downcast_ref::<gtk::ListItem>() {
+            item.set_child(Some(&gtk::Label::builder().xalign(0.0).build()));
+        }
+    });
+    factory.connect_bind(move |_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+            return;
+        };
+        let (Some(label), Some(text)) = (
+            item.child().and_downcast::<gtk::Label>(),
+            item.item().and_downcast::<gtk::StringObject>(),
+        ) else {
+            return;
+        };
+        label.set_label(&text.string());
+        let header = headers.get(item.position() as usize) == Some(&true);
+        label.set_margin_start(if grouped && !header { GAP_L } else { 0 });
+        for class in ["caption-heading", "dim-label"] {
+            if header {
+                label.add_css_class(class);
+            } else {
+                label.remove_css_class(class);
+            }
+        }
+        item.set_selectable(!header);
+        item.set_activatable(!header);
+    });
+    row.set_list_factory(Some(&factory));
+    let titles: Vec<&str> = titles.iter().map(String::as_str).collect();
+    row.set_model(Some(&gtk::StringList::new(&titles)));
+}
+
+/// The title of a group or step above its list.
+fn section_title(text: &str) -> gtk::Label {
+    gtk::Label::builder()
+        .label(text)
+        .xalign(0.0)
+        .css_classes(["heading"])
+        .build()
+}
+
+/// A row holding a widget that is no row, such as a note or buttons.
+fn plain_row(widget: &impl IsA<gtk::Widget>) -> gtk::ListBoxRow {
+    gtk::ListBoxRow::builder()
+        .child(widget)
+        .activatable(false)
+        .selectable(false)
+        .focusable(false)
+        .css_classes(["capycal-plain"])
+        .build()
+}
+
+/// Show or hide a label, and the row it alone fills.
+fn set_shown(label: &gtk::Label, shown: bool) {
+    label.set_visible(shown);
+    if let Some(row) = label.parent().and_downcast::<gtk::ListBoxRow>() {
+        row.set_visible(shown);
+    }
+}
+
+/// The text a field shows while empty; an entry row shows it below its
+/// title once typed in.
+fn set_placeholder(entry: &gtk::Editable, text: &str) {
+    if let Some(e) = entry.downcast_ref::<gtk::Entry>() {
+        e.set_placeholder_text(Some(text));
+    } else if let Some(t) = entry.delegate().and_downcast::<gtk::Text>() {
+        t.set_placeholder_text(Some(text));
+    }
+}
+
+/// The handle that drags condition `index`, showing `row` while dragged.
+fn condition_handle(index: usize, row: &gtk::Widget) -> gtk::Widget {
+    let handle = gtk::Image::builder()
+        .icon_name(crate::icons::symbolic("drag", DRAG_SVG))
+        .tooltip_text("Drag to move")
+        .valign(gtk::Align::Center)
+        .css_classes(["dim-label"])
+        .build();
+    handle.update_property(&[gtk::accessible::Property::Label("Drag to move")]);
+    let source = gtk::DragSource::builder()
+        .actions(gtk::gdk::DragAction::MOVE)
+        .build();
+    let from = index as u64;
+    source.connect_prepare(move |_, _, _| {
+        Some(gtk::gdk::ContentProvider::for_value(&from.to_value()))
+    });
+    let dragged = row.downgrade();
+    source.connect_drag_begin(move |source, _| {
+        let paintable = gtk::WidgetPaintable::new(dragged.upgrade().as_ref());
+        source.set_icon(Some(&paintable), 0, 0);
+    });
+    handle.add_controller(source);
+    handle.upcast()
 }
 
 fn disclosure_title(label: &str, open: bool) -> String {
@@ -1991,17 +2145,11 @@ impl Drop for SettingsWindow {
     }
 }
 
-/// A button in `entry` that lists `suggestions`; picking one replaces the
-/// text, any other text stays possible.
-fn suggestion_menu(entry: &gtk::Entry, suggestions: &[String]) {
-    entry.set_secondary_icon_name(Some("pan-down-symbolic"));
-    entry.set_secondary_icon_tooltip_text(Some("Suggestions"));
+/// A button at the end of `row` that lists `suggestions`; picking one
+/// replaces the text, any other text stays possible.
+fn suggestion_button(row: &adw::EntryRow, suggestions: &[String]) {
     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let popover = gtk::Popover::builder()
-        .child(&list)
-        .has_arrow(false)
-        .build();
-    popover.set_parent(entry);
+    let popover = gtk::Popover::builder().child(&list).build();
     for suggestion in suggestions {
         let item = gtk::Button::builder()
             .label(suggestion)
@@ -2010,24 +2158,25 @@ fn suggestion_menu(entry: &gtk::Entry, suggestions: &[String]) {
         if let Some(label) = item.child().and_downcast::<gtk::Label>() {
             label.set_xalign(0.0);
         }
-        let (entry, popover, text) = (entry.downgrade(), popover.clone(), suggestion.clone());
+        let (row, popover, text) = (row.downgrade(), popover.clone(), suggestion.clone());
         item.connect_clicked(move |_| {
             popover.popdown();
-            if let Some(entry) = entry.upgrade() {
-                entry.set_text(&text);
-                entry.set_position(-1);
+            if let Some(row) = row.upgrade() {
+                row.set_text(&text);
+                row.set_position(-1);
             }
         });
         list.append(&item);
     }
-    // The popover is a child of the entry until the entry goes
-    let child = popover.clone();
-    entry.connect_destroy(move |_| child.unparent());
-    entry.connect_icon_press(move |_, position| {
-        if position == gtk::EntryIconPosition::Secondary {
-            popover.popup();
-        }
-    });
+    let button = gtk::MenuButton::builder()
+        .icon_name("pan-down-symbolic")
+        .tooltip_text("Suggestions")
+        .popover(&popover)
+        .valign(gtk::Align::Center)
+        .css_classes(["flat"])
+        .build();
+    button.update_property(&[gtk::accessible::Property::Label("Suggestions")]);
+    row.add_suffix(&button);
 }
 
 /// The footer's text: a warning in the text color after a warning sign,
@@ -2059,7 +2208,7 @@ fn show_warning(label: &gtk::Label, message: Option<&str>) {
         "<span foreground=\"#e66100\">\u{26a0}</span>  {}",
         gtk::glib::markup_escape_text(text)
     ));
-    label.set_visible(message.is_some());
+    set_shown(label, message.is_some());
 }
 
 /// A right click on a sync's sidebar row offers "Duplicate".
@@ -2203,7 +2352,7 @@ fn add_shortcuts(window: &adw::Window, notify: Rc<dyn Fn(SettingsInput)>) {
 
 /// A right click on a step's row offers to move or remove it.
 fn step_menu<const N: usize>(
-    row: &gtk::Button,
+    row: &impl IsA<gtk::Widget>,
     items: [(&str, SettingsInput); N],
     send: impl Fn(SettingsInput) + Clone + 'static,
 ) {
