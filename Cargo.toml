@@ -171,7 +171,7 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
-ksni = { version = "0.3", default-features = false, features = ["tokio", "blocking"], optional = true }
+ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"], optional = true }
 
 [features]
 gtk = ["dep:gtk", "dep:adw", "dep:async-channel", "dep:ksni"]
