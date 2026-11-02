@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- GTK 4.14 and libadwaita 1.5 or later (Ubuntu 24.04, Debian 13, Fedora 40 and newer).
+- GTK 4.18 and libadwaita 1.7 or later (Debian 13, Ubuntu 25.04, Fedora 42 and newer). On older systems, such as Ubuntu 24.04, the Flatpak brings its own.
 - A tray that shows StatusNotifierItem icons. KDE Plasma, Cinnamon, XFCE, MATE, Budgie and the Ubuntu desktop do. **GNOME** needs the extension [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) (Fedora: `gnome-shell-extension-appindicator`). Without a tray, the app shows its menu as a window after ten seconds, with a note about the missing tray; it keeps syncing, and the icon appears as soon as a tray starts.
 
 ## Install and start

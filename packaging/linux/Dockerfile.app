@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1
-# The Linux desktop app's .deb and .rpm, built on Ubuntu 24.04 like the
-# release (its GTK 4.14 and libadwaita 1.5 are the oldest the app supports).
+# The Linux desktop app's .deb and .rpm, built on Debian 13 like the release
+# (its GTK 4.18 and libadwaita 1.7 are the oldest the app supports, its glibc
+# the oldest among the systems that have them).
 # Used by `make dist-linux-app-x86_64` / `make dist-linux-app-arm64`:
 #   docker buildx build --platform linux/arm64 --build-arg TARGET=aarch64-unknown-linux-gnu \
 #     -f packaging/linux/Dockerfile.app --output dist .
 
-FROM ubuntu:24.04 AS build
+FROM debian:13 AS build
 ARG TARGET
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

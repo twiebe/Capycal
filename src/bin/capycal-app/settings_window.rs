@@ -40,8 +40,6 @@ row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-stage > list { transition: outline-color 150ms ease-in-out; outline: 2px solid transparent; outline-offset: 0; }
 .capycal-stage.active > list { outline-color: @accent_bg_color; }
 .capycal-add-icon { color: @accent_color; }
-.capycal-join > button:first-child { border-top-left-radius: 999px; border-bottom-left-radius: 999px; padding-left: 14px; }
-.capycal-join > button:last-child { border-top-right-radius: 999px; border-bottom-right-radius: 999px; padding-right: 14px; }
 .capycal-round { border-radius: 999px; padding-left: 14px; padding-right: 14px; }
 .capycal-tag { border-radius: 999px; padding: 1px 8px; background: alpha(currentColor, 0.1); }
 .capycal-name { font-size: 22pt; font-weight: bold; padding: 0; min-height: 0; }
@@ -83,10 +81,9 @@ enum Drawn {
         switch: Option<gtk::Switch>,
         status: gtk::Label,
     },
-    Segments(Vec<gtk::ToggleButton>),
+    Segments(adw::ToggleGroup),
     Preview {
-        modes: gtk::Box,
-        toggles: Vec<gtk::ToggleButton>,
+        modes: adw::ToggleGroup,
         source: [gtk::Label; 4],
         copy: [gtk::Label; 4],
         copy_box: gtk::Box,
@@ -94,6 +91,7 @@ enum Drawn {
     TransformRow(adw::ExpanderRow),
     Footer(gtk::Label, gtk::Image, gtk::ProgressBar, Vec<gtk::Button>),
     Buttons(Vec<gtk::Button>),
+    ButtonRows(Vec<adw::ButtonRow>),
     Disclosure(gtk::Button),
 }
 
@@ -1136,37 +1134,23 @@ impl SettingsWindow {
                 selected,
                 centered,
             } => {
-                let row = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Horizontal)
-                    .css_classes(if *centered {
-                        vec!["linked", "capycal-join"]
-                    } else {
-                        vec!["linked"]
-                    })
-                    .halign(if *centered {
-                        gtk::Align::Center
-                    } else {
-                        gtk::Align::Start
-                    })
-                    .build();
-                let mut toggles = Vec::new();
-                for (i, item) in items.iter().enumerate() {
-                    let b = gtk::ToggleButton::builder()
-                        .label(item)
-                        .active(*selected == Some(i))
-                        .build();
-                    let send = send.clone();
-                    let id = id.clone();
-                    b.connect_clicked(move |_| send(SettingsInput::Selected(id.clone(), i)));
-                    row.append(&b);
-                    toggles.push(b);
+                let id = id.clone();
+                let group = toggle_group(items, *selected, move |i| {
+                    send(SettingsInput::Selected(id.clone(), i))
+                });
+                // A join stands on its own line: a pill
+                if *centered {
+                    group.add_css_class("round");
+                    group.set_halign(gtk::Align::Center);
+                } else {
+                    group.set_halign(gtk::Align::Start);
                 }
                 if label.is_empty() {
-                    self.add_widget(&row);
+                    self.add_widget(&group);
                 } else {
-                    self.suffix_row(label, &row);
+                    self.suffix_row(label, &group);
                 }
-                Drawn::Segments(toggles)
+                Drawn::Segments(group)
             }
             Control::Preview {
                 mode,
@@ -1184,24 +1168,14 @@ impl SettingsWindow {
                 );
                 // A sample or the source's next event
                 // Standing on its own above the preview: a pill
-                let modes = gtk::Box::builder()
-                    .css_classes(["linked", "capycal-join"])
-                    .halign(gtk::Align::Start)
-                    .visible(mode.is_some())
-                    .build();
-                let mut toggles = Vec::new();
-                for (i, title) in ["Sample", "Next event"].into_iter().enumerate() {
-                    let b = gtk::ToggleButton::builder()
-                        .label(title)
-                        .active(mode.unwrap_or(0) == i)
-                        .build();
-                    let send = send.clone();
-                    b.connect_clicked(move |_| {
-                        send(SettingsInput::Selected(FieldId::PreviewMode, i))
-                    });
-                    modes.append(&b);
-                    toggles.push(b);
-                }
+                let modes = toggle_group(
+                    &["Sample".to_string(), "Next event".to_string()],
+                    Some(mode.unwrap_or(0)),
+                    move |i| send(SettingsInput::Selected(FieldId::PreviewMode, i)),
+                );
+                modes.add_css_class("round");
+                modes.set_halign(gtk::Align::Start);
+                modes.set_visible(mode.is_some());
                 self.aside.append(&modes);
                 let (source_box, source_labels) = event_box(source_label, Some(source));
                 let (copy_box, copy_labels) = event_box(copy_label, copy.as_ref());
@@ -1215,7 +1189,6 @@ impl SettingsWindow {
                 self.aside.append(&copy_box);
                 Drawn::Preview {
                     modes,
-                    toggles,
                     source: source_labels,
                     copy: copy_labels,
                     copy_box,
@@ -1634,6 +1607,24 @@ impl SettingsWindow {
                     drawn,
                 )
             }
+            // In an open transform: rows like the conditions'
+            Control::Buttons(buttons) if self.expander.is_some() => {
+                let mut drawn = Vec::new();
+                for (id, title, enabled) in buttons {
+                    let row = adw::ButtonRow::builder()
+                        .title(title)
+                        .sensitive(*enabled)
+                        .build();
+                    if *id == FieldId::AddCondition {
+                        row.set_start_icon_name(Some("list-add-symbolic"));
+                    }
+                    let (send, id) = (send.clone(), id.clone());
+                    row.connect_activated(move |_| send(SettingsInput::Pressed(id.clone())));
+                    self.add_row(&row);
+                    drawn.push(row);
+                }
+                Drawn::ButtonRows(drawn)
+            }
             Control::Buttons(buttons) => {
                 let row = gtk::Box::builder()
                     .orientation(gtk::Orientation::Horizontal)
@@ -1784,10 +1775,8 @@ impl SettingsWindow {
                         switch.set_active(*on);
                     }
                 }
-                (Control::Segments { selected, .. }, Drawn::Segments(toggles)) => {
-                    for (j, b) in toggles.iter().enumerate() {
-                        b.set_active(*selected == Some(j));
-                    }
+                (Control::Segments { selected, .. }, Drawn::Segments(group)) => {
+                    group.set_active(selected.map_or(gtk::INVALID_LIST_POSITION, |s| s as u32))
                 }
                 (
                     Control::Preview {
@@ -1799,16 +1788,13 @@ impl SettingsWindow {
                     },
                     Drawn::Preview {
                         modes,
-                        toggles,
                         source,
                         copy,
                         copy_box,
                     },
                 ) => {
                     modes.set_visible(mode.is_some());
-                    for (i, b) in toggles.iter().enumerate() {
-                        b.set_active(mode.unwrap_or(0) == i);
-                    }
+                    modes.set_active(mode.unwrap_or(0) as u32);
                     fill_event(source, source_label, Some(s));
                     fill_event(copy, copy_label, c.as_ref());
                     copy_box.set_opacity(if c.is_some() { 1.0 } else { 0.6 });
@@ -1830,6 +1816,12 @@ impl SettingsWindow {
                     show_progress(bar, *progress);
                     for (b, (_, title, enabled)) in drawn.iter().zip(left.iter().chain(right)) {
                         b.set_label(title);
+                        b.set_sensitive(*enabled);
+                    }
+                }
+                (Control::Buttons(buttons), Drawn::ButtonRows(drawn)) => {
+                    for (b, (_, title, enabled)) in drawn.iter().zip(buttons) {
+                        b.set_title(title);
                         b.set_sensitive(*enabled);
                     }
                 }
@@ -1913,10 +1905,12 @@ fn show_status(label: &gtk::Label, status: Option<&(String, bool)>) {
 /// details. Returns the box and its labels (caption, time, title, details).
 fn event_box(caption: &str, event: Option<&EventPreview>) -> (gtk::Box, [gtk::Label; 4]) {
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 3);
+    // Wrapped at the column's width, so a long text does not widen it
     let label = |classes: &[&str]| {
         gtk::Label::builder()
             .xalign(0.0)
             .wrap(true)
+            .max_width_chars(30)
             .css_classes(classes.to_vec())
             .build()
     };
@@ -2060,6 +2054,27 @@ fn combo_items(row: &adw::ComboRow, items: &[PopupItem]) {
     row.set_list_factory(Some(&factory));
     let titles: Vec<&str> = titles.iter().map(String::as_str).collect();
     row.set_model(Some(&gtk::StringList::new(&titles)));
+}
+
+/// Mutually exclusive `items`, `selected` one active; `select` gets the one
+/// the user picks.
+fn toggle_group(
+    items: &[String],
+    selected: Option<usize>,
+    select: impl Fn(usize) + 'static,
+) -> adw::ToggleGroup {
+    let group = adw::ToggleGroup::new();
+    for item in items {
+        group.add(adw::Toggle::builder().label(item).build());
+    }
+    group.set_active(selected.map_or(gtk::INVALID_LIST_POSITION, |s| s as u32));
+    group.connect_active_notify(move |g| {
+        let active = g.active();
+        if active != gtk::INVALID_LIST_POSITION {
+            select(active as usize);
+        }
+    });
+    group
 }
 
 /// The title of a group or step above its list.

@@ -43,7 +43,7 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 | Linux x86_64 / arm64 (static) | `.deb`, `.rpm`, or `capycal-v<version>-{x86_64,aarch64}-unknown-linux-musl.tar.gz` |
 | Arch Linux | `capycal-bin.PKGBUILD` (CLI), `capycal-app-bin.PKGBUILD` (desktop app), build with `makepkg -si -p <file>` |
 | Homebrew (macOS, Linux) | `brew install twiebe/capycal/capycal`, app: `brew install --cask twiebe/capycal/capycal-app` |
-| Linux desktop app (GTK 4.14+) | `capycal-app` `.deb` / `.rpm`, Flatpak: `flatpak install --user https://capycal.app/packages/app.capycal.Capycal.flatpakref` |
+| Linux desktop app (GTK 4.18+, libadwaita 1.7+) | `capycal-app` `.deb` / `.rpm`, Flatpak: `flatpak install --user https://capycal.app/packages/app.capycal.Capycal.flatpakref` |
 
 The macOS app and binary are not notarized: right-click the app and choose Open, or run `xattr -dr com.apple.quarantine /Applications/Capycal.app`.
 

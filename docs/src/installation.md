@@ -9,7 +9,7 @@ Prebuilt downloads are on the [releases page](https://github.com/twiebe/capycal/
 | Linux x86_64 (static) | `capycal-v<version>-x86_64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_amd64.deb`, `capycal-<version>-1.x86_64.rpm` |
 | Linux arm64 (static) | `capycal-v<version>-aarch64-unknown-linux-musl.tar.gz`, `capycal_<version>-1_arm64.deb`, `capycal-<version>-1.aarch64.rpm` |
 | Arch Linux | `capycal-bin.PKGBUILD` (CLI), `capycal-app-bin.PKGBUILD` (desktop app), see [Arch Linux](#arch-linux) |
-| Linux desktop app (x86_64, arm64; GTK 4.14+) | `capycal-app_<version>-1_<arch>.deb`, `capycal-app-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
+| Linux desktop app (x86_64, arm64; GTK 4.18+, libadwaita 1.7+) | `capycal-app_<version>-1_<arch>.deb`, `capycal-app-<version>-1.<arch>.rpm`, see [Desktop app (Linux)](app/linux.md) |
 | Container (linux/amd64, linux/arm64) | `ghcr.io/twiebe/capycal`, see [Docker](#docker) |
 
 On macOS and Linux, [Homebrew](#homebrew) installs the CLI and the macOS app from the tap `twiebe/capycal`.
@@ -51,7 +51,7 @@ Continue with [Quick start: desktop app](app/quick-start.md).
 
 ## Linux packages
 
-The package repositories on capycal.app carry the CLI `capycal` and the desktop app `capycal-app` for x86_64 and arm64, so updates come with the system's (the desktop app needs Debian 13, Ubuntu 24.04, Fedora 40 or later). Debian, Ubuntu and their derivatives:
+The package repositories on capycal.app carry the CLI `capycal` and the desktop app `capycal-app` for x86_64 and arm64, so updates come with the system's (the desktop app needs Debian 13, Ubuntu 25.04, Fedora 42 or later; on older systems use the [Flatpak](app/linux.md)). Debian, Ubuntu and their derivatives:
 
 ```bash
 sudo mkdir -p /etc/apt/keyrings

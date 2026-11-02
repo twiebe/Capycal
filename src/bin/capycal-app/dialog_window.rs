@@ -24,8 +24,7 @@ pub struct DialogWindow {
     alive: Rc<Cell<bool>>,
     dialog: adw::Dialog,
     heading: gtk::Label,
-    heading_row: gtk::Box,
-    spinner: gtk::Spinner,
+    spinner: adw::Spinner,
     message: gtk::Label,
     warning_box: gtk::Box,
     warning: gtk::Label,
@@ -68,7 +67,7 @@ impl DialogWindow {
         if let Some(tint) = tint {
             tint_widget(&image, tint);
         }
-        let spinner = gtk::Spinner::new();
+        let spinner = adw::Spinner::new();
         let heading = gtk::Label::builder()
             .wrap(true)
             .justify(gtk::Justification::Center)
@@ -187,7 +186,6 @@ impl DialogWindow {
             alive,
             dialog,
             heading,
-            heading_row,
             spinner,
             message,
             warning_box,
@@ -237,16 +235,8 @@ impl DialogWindow {
             .update_property(&[gtk::accessible::Property::Label(
                 view.entry.as_deref().unwrap_or_default(),
             )]);
-        if view.busy && !self.spinner.is_spinning() {
-            // A spinner hidden and shown again may stay still (seen on
-            // macOS), so busy again gets a fresh one
-            let spinner = gtk::Spinner::new();
-            self.heading_row.remove(&self.spinner);
-            self.heading_row.prepend(&spinner);
-            self.spinner = spinner;
-        }
+        // It spins while shown
         self.spinner.set_visible(view.busy);
-        self.spinner.set_spinning(view.busy);
         self.progress.set_visible(view.progress.is_some());
         self.progress.set_fraction(view.fraction().unwrap_or(0.0));
         self.footnote.set_visible(view.footnote.is_some());

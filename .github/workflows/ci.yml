@@ -46,14 +46,24 @@ jobs:
         run: cargo clippy --locked --all-targets --features ui -- -D warnings
       - name: Test (ui)
         run: cargo test --locked --features ui --bin capycal-ui
+
+  gtk:
+    name: Linux app
+    runs-on: ubuntu-24.04
+    # The oldest GTK 4 and libadwaita the app supports, like the release
+    container: debian:13
+    steps:
       - name: Install GTK 4 and libadwaita
-        if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl git libadwaita-1-dev libgtk-4-dev pkg-config
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Clippy (GTK app)
-        if: runner.os == 'Linux'
         run: cargo clippy --locked --features gtk --bin capycal-app --tests -- -D warnings
       - name: Test (GTK app)
-        if: runner.os == 'Linux'
         run: cargo test --locked --features gtk --bin capycal-app

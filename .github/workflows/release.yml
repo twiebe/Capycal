@@ -147,7 +147,16 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
+    # Debian 13's GTK 4.18 and libadwaita 1.7 are the oldest the app
+    # supports, its glibc the oldest among the systems that have them
+    container: debian:13
     steps:
+      - name: Install GTK 4 and libadwaita
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            appstream build-essential ca-certificates curl git libadwaita-1-dev libgtk-4-dev pkg-config
+
       - uses: actions/checkout@v7
 
       - name: Check tag matches Cargo.toml version
@@ -158,12 +167,6 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
             exit 1
           fi
-
-      # Ubuntu 24.04's GTK 4.14 and libadwaita 1.5 are the oldest the app supports
-      - name: Install GTK 4 and libadwaita
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev appstream
 
       - uses: dtolnay/rust-toolchain@stable
 

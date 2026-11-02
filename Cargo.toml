@@ -43,7 +43,7 @@ assets = [
 # The desktop app as its own package (glibc build with GTK)
 [package.metadata.deb.variants.gtk]
 name = "capycal-app"
-depends = "libc6, libgtk-4-1 (>= 4.14), libadwaita-1-0 (>= 1.5)"
+depends = "libc6, libgtk-4-1 (>= 4.18), libadwaita-1-0 (>= 1.7)"
 # Called capycal-gtk up to 0.1.0
 conflicts = "capycal-gtk"
 replaces = "capycal-gtk"
@@ -98,7 +98,7 @@ assets = [
 
 [package.metadata.generate-rpm.variants.gtk]
 name = "capycal-app"
-requires = { gtk4 = ">= 4.14", libadwaita = ">= 1.5" }
+requires = { gtk4 = ">= 4.18", libadwaita = ">= 1.7" }
 # Called capycal-gtk up to 0.1.0
 obsoletes = { capycal-gtk = "*" }
 provides = { capycal-gtk = "*" }
@@ -151,8 +151,8 @@ clap_complete = "4"
 clap_mangen = "0.3"
 # The GTK desktop app (capycal-app). The tray is Linux-only; the windows also
 # build on macOS with Homebrew's gtk4 and libadwaita, for development.
-gtk = { package = "gtk4", version = "0.11", features = ["v4_14"], optional = true }
-adw = { package = "libadwaita", version = "0.9", features = ["v1_5"], optional = true }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"], optional = true }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_7"], optional = true }
 async-channel = { version = "2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]

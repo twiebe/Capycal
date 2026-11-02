@@ -175,7 +175,7 @@ dist-linux-arm64: ## Static Linux CLI for arm64 (Docker buildx)
 
 dist-linux: dist-linux-x86_64 dist-linux-arm64 ## Both static Linux CLIs
 
-# The desktop app needs glibc, GTK and libadwaita: built on Ubuntu 24.04
+# The desktop app needs glibc, GTK and libadwaita: built on Debian 13
 dist-linux-app-x86_64: ## Linux desktop app .deb and .rpm for x86_64 (Docker buildx)
 	docker buildx build --platform linux/amd64 --build-arg TARGET=x86_64-unknown-linux-gnu \
 		-f packaging/linux/Dockerfile.app --output $(DIST) .
