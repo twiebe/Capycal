@@ -128,7 +128,11 @@ impl Section {
 pub struct SettingsWindow {
     window: adw::Window,
     /// The sidebar with the app's version below it.
-    sidebar_pane: gtk::Box,
+    /// The sidebar beside the content; the wizard hides it.
+    split: adw::OverlaySplitView,
+    sidebar_title: adw::WindowTitle,
+    /// The wizard's title, which has no sidebar to show it.
+    content_title: adw::WindowTitle,
     version: gtk::Label,
     sidebar: gtk::Box,
     editor: gtk::Box,
@@ -159,7 +163,7 @@ pub struct SettingsWindow {
     aside: gtk::Box,
     banner: adw::Banner,
     /// The bar at the bottom: buttons left, a text, buttons right.
-    footer: gtk::Box,
+    footer: gtk::CenterBox,
     footer_start: gtk::Box,
     footer_text: gtk::Label,
     /// The warning sign before a footer text that keeps Save off.
@@ -242,7 +246,9 @@ impl SettingsWindow {
             .update_property(&[gtk::accessible::Property::Label("Removing synced events")]);
         end.append(&footer_progress);
         end.append(&footer_end);
-        let footer_bar = gtk::CenterBox::builder()
+        // A bottom bar: the toolbar view draws its edge while the content
+        // scrolls under it
+        let footer = gtk::CenterBox::builder()
             .start_widget(&footer_start)
             .end_widget(&end)
             .margin_top(12)
@@ -250,9 +256,6 @@ impl SettingsWindow {
             .margin_start(12)
             .margin_end(12)
             .build();
-        let footer = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        footer.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-        footer.append(&footer_bar);
         let aside = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(8)
@@ -263,10 +266,6 @@ impl SettingsWindow {
         let middle = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         middle.append(&editor_scroll);
         middle.append(&aside);
-        let right = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        right.append(&banner);
-        right.append(&middle);
-        right.append(&footer);
         let sidebar_scroll = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .child(&sidebar)
@@ -278,28 +277,43 @@ impl SettingsWindow {
             .margin_start(16)
             .margin_bottom(12)
             .build();
-        let sidebar_pane = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .css_classes(["sidebar-pane"])
-            .build();
+        let sidebar_pane = gtk::Box::new(gtk::Orientation::Vertical, 0);
         sidebar_pane.append(&sidebar_scroll);
         sidebar_pane.append(&version);
-        let paned = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .start_child(&sidebar_pane)
-            .end_child(&right)
-            .shrink_start_child(false)
-            .position(SIDEBAR_WIDTH + 16)
+        // Sidebar and content each have a header bar, so the sidebar runs
+        // up to the window's edge, like in GNOME's own apps
+        let sidebar_title = adw::WindowTitle::new("", "");
+        let sidebar_view = adw::ToolbarView::new();
+        sidebar_view.add_top_bar(
+            &adw::HeaderBar::builder()
+                .title_widget(&sidebar_title)
+                .build(),
+        );
+        sidebar_view.set_content(Some(&sidebar_pane));
+        let content_title = adw::WindowTitle::new("", "");
+        let content_view = adw::ToolbarView::builder()
+            .bottom_bar_style(adw::ToolbarStyle::Raised)
             .build();
-        let view_bar = adw::ToolbarView::new();
-        view_bar.add_top_bar(&adw::HeaderBar::new());
-        view_bar.set_content(Some(&paned));
+        content_view.add_top_bar(
+            &adw::HeaderBar::builder()
+                .title_widget(&content_title)
+                .build(),
+        );
+        content_view.add_top_bar(&banner);
+        content_view.set_content(Some(&middle));
+        content_view.add_bottom_bar(&footer);
+        let split = adw::OverlaySplitView::builder()
+            .sidebar(&sidebar_view)
+            .content(&content_view)
+            .min_sidebar_width(f64::from(SIDEBAR_WIDTH + 16))
+            .max_sidebar_width(280.0)
+            .build();
         let window = adw::Window::builder()
             .application(application)
             .title("Settings")
             .default_width(1100)
             .default_height(680)
-            .content(&view_bar)
+            .content(&split)
             .build();
         let closing = notify.clone();
         window.connect_close_request(move |_| {
@@ -324,7 +338,9 @@ impl SettingsWindow {
         );
         let mut settings = Self {
             window,
-            sidebar_pane,
+            split,
+            sidebar_title,
+            content_title,
             version,
             sidebar,
             section: Section::new(editor.clone()),
@@ -373,7 +389,10 @@ impl SettingsWindow {
     /// being typed in keeps its focus; else from scratch.
     pub fn show(&mut self, view: &SettingsView) {
         // The wizard shows no sidebar
-        self.sidebar_pane.set_visible(!view.compact);
+        self.split.set_show_sidebar(!view.compact);
+        self.sidebar_title.set_title(&view.title);
+        self.content_title
+            .set_title(if view.compact { &view.title } else { "" });
         self.version.set_label(&view.version);
         self.window.set_title(Some(&view.title));
         let names = |items: &[SidebarItem]| -> Vec<String> {
