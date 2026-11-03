@@ -3934,7 +3934,11 @@ interval = "5m"
         text: &str,
         calendar_app: bool,
     ) -> (SettingsScreen, Vec<Command>, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("capycal-{}-view-{name}", std::process::id()));
+        // A directory per call: tests run in parallel and may share a name
+        static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("capycal-{}-view-{name}-{call}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("capycal.toml");
