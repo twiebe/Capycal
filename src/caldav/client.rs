@@ -80,6 +80,17 @@ pub struct CalendarProps {
     pub display_name: Option<String>,
 }
 
+/// A 400 whose `RateLimit` header says no requests are left: how Stalwart
+/// answers more than its limit of requests at once.
+fn is_out_of_requests(response: &reqwest::Response) -> bool {
+    response.status() == reqwest::StatusCode::BAD_REQUEST
+        && response
+            .headers()
+            .get("RateLimit")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.split(';').any(|part| part.trim() == "r=0"))
+}
+
 impl CalDavClient {
     pub fn new(base_url: &str, auth: ResolvedAuth) -> Result<Self> {
         let client = Client::builder()
@@ -138,7 +149,8 @@ impl CalDavClient {
             match resp {
                 Ok(response) => {
                     let status = response.status().as_u16();
-                    let retryable = matches!(status, 408 | 429 | 500 | 502 | 503 | 504);
+                    let retryable = matches!(status, 408 | 429 | 500 | 502 | 503 | 504)
+                        || is_out_of_requests(&response);
 
                     if !retryable || attempt >= retry.max_retries {
                         return Ok(response);
@@ -1814,6 +1826,45 @@ END:VCALENDAR</c:calendar-data>
             .await;
 
         mock_client(&server).delete_event("x.ics").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_bad_request_without_requests_left_is_retried() {
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .respond_with(
+                ResponseTemplate::new(400)
+                    .insert_header("RateLimit", "\"concurrent-requests\";r=0"),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        mock_client(&server).delete_event("x.ics").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_other_bad_requests_are_not_retried() {
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .respond_with(
+                ResponseTemplate::new(400).insert_header("RateLimit", "\"requests\";r=10"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let err = mock_client(&server)
+            .delete_event("x.ics")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("400"), "{err}");
     }
 
     #[tokio::test]

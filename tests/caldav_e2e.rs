@@ -888,6 +888,21 @@ async fn test_feed_with_new_uids_on_each_request_keeps_its_copies() {
 
 #[tokio::test]
 #[ignore = "needs a CalDAV server, run `make test-caldav`"]
+async fn test_many_writes_at_once_all_arrive() {
+    let setup = Setup::new("parallel", "").await;
+    setup.edit_config("[calendars.sink]\n", "[calendars.sink]\nconcurrency = 16\n");
+    for i in 0..40 {
+        setup
+            .put(&format!("e{i}"), &event(&format!("e{i}"), ""))
+            .await;
+    }
+    setup.sync();
+    assert_eq!(setup.sink_events().await.len(), 40);
+    setup.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a CalDAV server, run `make test-caldav`"]
 async fn test_added_skip_removes_existing_copies() {
     let setup = Setup::new("added-skip", "fields = [\"SUMMARY\"]").await;
     setup.put("e1.ics", &event("e1", "")).await;

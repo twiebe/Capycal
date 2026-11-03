@@ -133,7 +133,7 @@ Moving incrementally toward ports & adapters (no crate split, generics instead o
 - CDATA: strip `<![CDATA[...]]>` wrappers from XML content
 - Sync-token: try RFC 6578 sync-collection first, fall back to ctag/etag
 - PUT: unconditional (no If-None-Match or If-Match) for simplicity
-- Retry: exponential backoff on 408/429/5xx and connect/timeout errors, respect Retry-After header. Above that, `SyncRunner::run` retries a failed cycle (an error or `CycleStats.errors`) after `ERROR_RETRY` (1, 2, 5, 15 min, at most `interval`) instead of waiting the interval
+- Retry: exponential backoff on 408/429/5xx, a 400 whose `RateLimit` header has `r=0` (Stalwart over its limit of requests at once) and connect/timeout errors, respect Retry-After header. Above that, `SyncRunner::run` retries a failed cycle (an error or `CycleStats.errors`) after `ERROR_RETRY` (1, 2, 5, 15 min, at most `interval`) instead of waiting the interval
 
 ## EventKit specifics
 
