@@ -1,0 +1,46 @@
+name: E2E servers
+
+# The CalDAV end-to-end tests against Stalwart and Nextcloud, next to the
+# Radicale run of every CI job. Only where a change can matter to a server, and
+# called by the release workflow.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/caldav/**"
+      - "src/ical/**"
+      - "src/ics/**"
+      - "src/sync/**"
+      - "tests/caldav_e2e.rs"
+      - "scripts/test-caldav.sh"
+      - ".github/workflows/e2e-servers.yml"
+  pull_request:
+    paths:
+      - "src/caldav/**"
+      - "src/ical/**"
+      - "src/ics/**"
+      - "src/sync/**"
+      - "tests/caldav_e2e.rs"
+      - "scripts/test-caldav.sh"
+      - ".github/workflows/e2e-servers.yml"
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  e2e:
+    name: ${{ matrix.server }}
+    strategy:
+      fail-fast: false
+      matrix:
+        server: [stalwart, nextcloud]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: End-to-end tests
+        run: make test-caldav SERVER=${{ matrix.server }}

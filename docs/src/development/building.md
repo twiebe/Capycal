@@ -12,6 +12,7 @@ make run-app      # build Capycal.app and open it (macOS)
 make test         # cargo test
 make test-ui      # tests of the menu bar app
 make test-caldav  # end-to-end tests against a throwaway Radicale server
+make test-caldav SERVER=stalwart  # the same against Stalwart, or SERVER=nextcloud; needs Docker
 make test-caldav-docker # the same in a Linux container, needs only Docker
 make test-eventkit # tests against Calendar.app (macOS)
 make lint         # cargo fmt --check + clippy -D warnings, without and with the app
@@ -23,6 +24,8 @@ make fmt          # format the code
 EventKit code is compiled on macOS only. Its conversion logic (`eventkit/convert.rs`) and the app's display-free modules are compiled and tested on Linux too, so `make test test-ui` works on both platforms.
 
 `make test-caldav` (`scripts/test-caldav.sh`) installs [Radicale](https://radicale.org/) into `target/radicale`, starts it on 127.0.0.1:5299 with a temporary storage directory and runs `tests/caldav_e2e.rs`: the `capycal` binary syncs between two calendars named `capycal-test-...` and the tests check what arrives in the target (busy blocker fields, updates, series with exceptions, buffers, cancelled events, full sync after lost state, purge). The tests are `#[ignore]`d, so a plain `cargo test` skips them. It needs `python3` and `curl`.
+
+`make test-caldav SERVER=stalwart` and `SERVER=nextcloud` run the same tests against these servers in Docker containers with pinned images, set up in the script. They run one test at a time: Stalwart allows an account 4 requests at once by default, and Nextcloud in the container uses SQLite. In CI, `.github/workflows/e2e-servers.yml` runs them for changes near a server and on a release; the Radicale run stays in every CI job.
 
 `make test-eventkit` runs the `#[ignore]`d `live_tests` in `src/eventkit/client.rs` against the real Calendar.app database: Calendar.app as a source (all-day, multi-day, timed, alarms, series as occurrences) copied into a second calendar with nothing left to change for a full sync, series with excluded, moved and cancelled occurrences, UNTIL, monthly and all-day rules, rewriting a series, a single event round trip with the full sync comparison, unsupported rules, delete and purge. Every test creates its own calendar named `capycal-test-<pid>-<test>` ("On My Mac" if available, else in the account of the default calendar) and removes it afterwards, also when the test fails. Calendars with that prefix left over by an aborted run are removed at the next run; no other calendar is touched. Run it from Terminal: macOS asks once whether Terminal may access your calendars.
 

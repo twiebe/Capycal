@@ -1,17 +1,21 @@
 //! End-to-end tests of the `capycal` binary against a real CalDAV server.
 //!
-//! Ignored by default; `make test-caldav` starts a throwaway Radicale server
-//! and runs them. They need `CAPYCAL_TEST_CALDAV_URL` (a URL under which
-//! calendars may be created, e.g. `http://127.0.0.1:5232/test/`) and accept
+//! Ignored by default; `make test-caldav` starts a throwaway server (Radicale,
+//! or `SERVER=stalwart` / `SERVER=nextcloud`) and runs them. They need
+//! `CAPYCAL_TEST_CALDAV_URL` (a URL under which calendars may be created, e.g.
+//! `http://127.0.0.1:5232/test/`) and accept
 //! `CAPYCAL_TEST_CALDAV_USER` / `CAPYCAL_TEST_CALDAV_PASSWORD` (default
 //! `test` / `test`). Every calendar they create is named `capycal-test-...`
 //! and deleted at the end.
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 
 use regex::Regex;
 use reqwest::{Client, Method};
+use wiremock::matchers::path;
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const PREFIX: &str = "capycal-test-";
 
@@ -133,6 +137,44 @@ impl Server {
     }
 }
 
+/// An iCal feed on a local address, with the events last given to `serve`.
+struct Feed {
+    server: MockServer,
+    body: Arc<Mutex<String>>,
+}
+
+impl Feed {
+    async fn start() -> Self {
+        let server = MockServer::start().await;
+        let body = Arc::new(Mutex::new(String::new()));
+        let current = body.clone();
+        Mock::given(path("/feed.ics"))
+            .respond_with(move |_: &wiremock::Request| {
+                ResponseTemplate::new(200).set_body_string(current.lock().unwrap().clone())
+            })
+            .mount(&server)
+            .await;
+        Self { server, body }
+    }
+
+    /// Serves these one-event calendars as one calendar.
+    fn serve(&self, calendars: &[String]) {
+        let events: String = calendars
+            .iter()
+            .flat_map(|calendar| calendar.lines())
+            .filter(|line| {
+                !line.ends_with(":VCALENDAR")
+                    && !line.starts_with("VERSION:")
+                    && !line.starts_with("PRODID:")
+            })
+            .map(|line| format!("{line}\r\n"))
+            .collect();
+        *self.body.lock().unwrap() = format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//capycal test//EN\r\n{events}END:VCALENDAR\r\n"
+        );
+    }
+}
+
 /// Two calendars and a config syncing the first into the second.
 struct Setup {
     server: Server,
@@ -154,12 +196,12 @@ impl Setup {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let calendar =
-            |name: &str| format!("account = \"radicale\"\nurl = \"{}\"\n", server.url(name));
+            |name: &str| format!("account = \"caldav\"\nurl = \"{}\"\n", server.url(name));
         std::fs::write(
             dir.join("capycal.toml"),
             format!(
                 "[daemon]\nstate_dir = \"{}\"\n\n\
-                 [accounts.radicale]\nurl = \"{}\"\nusername = \"{}\"\npassword = \"{}\"\n\n\
+                 [accounts.caldav]\nurl = \"{}\"\nusername = \"{}\"\npassword = \"{}\"\n\n\
                  [calendars.source]\n{}\n[calendars.sink]\n{}\n\
                  [syncs.test]\nsource = \"source\"\ntarget = \"sink\"\ninterval = \"1h\"\n{sync_options}\n",
                 dir.join("state").display(),
@@ -208,6 +250,23 @@ impl Setup {
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains(from), "{from} not in config");
         std::fs::write(&path, text.replace(from, to)).unwrap();
+    }
+
+    /// Makes an iCal feed served by the test the source: not every CalDAV
+    /// server answers a GET of a calendar with the whole calendar.
+    async fn use_feed(&self) -> Feed {
+        let feed = Feed::start().await;
+        self.edit_config(
+            &format!(
+                "[calendars.source]\naccount = \"caldav\"\nurl = \"{}\"\n",
+                self.server.url(&self.source)
+            ),
+            &format!(
+                "[calendars.source]\nics_url = \"{}/feed.ics\"\n",
+                feed.server.uri()
+            ),
+        );
+        feed
     }
 
     fn status(&self) -> String {
@@ -767,20 +826,8 @@ async fn test_working_hours_window_wraps_and_keeps_all_day_events() {
 #[ignore = "needs a CalDAV server, run `make test-caldav`"]
 async fn test_feed_source_follows_changes_and_removals() {
     let setup = Setup::new("feed", "fields = [\"SUMMARY\"]").await;
-    // Radicale answers a GET of the collection with the whole calendar,
-    // like a calendar's secret iCal address
-    let url = setup.server.url(&setup.source);
-    let feed = url.replacen(
-        "://",
-        &format!("://{}:{}@", setup.server.user, setup.server.password),
-        1,
-    );
-    setup.edit_config(
-        &format!("[calendars.source]\naccount = \"radicale\"\nurl = \"{url}\"\n"),
-        &format!("[calendars.source]\nics_url = \"{feed}\"\n"),
-    );
-    setup.put("a", &event("a", "")).await;
-    setup.put("series", SERIES).await;
+    let feed = setup.use_feed().await;
+    feed.serve(&[event("a", ""), SERIES.into()]);
     setup.sync();
     assert_eq!(setup.sink_events().await.len(), 2);
     assert_contains(&setup.copy_of("a").await, &["SUMMARY:Secret a"]);
@@ -794,10 +841,7 @@ async fn test_feed_source_follows_changes_and_removals() {
         ],
     );
 
-    setup
-        .put("a", &event("a", "").replace("Secret a", "Renamed a"))
-        .await;
-    setup.delete("series").await;
+    feed.serve(&[event("a", "").replace("Secret a", "Renamed a")]);
     setup.sync();
     assert_eq!(setup.sink_events().await.len(), 1);
     assert_contains(&setup.copy_of("a").await, &["SUMMARY:Renamed a"]);
@@ -812,37 +856,24 @@ async fn test_feed_source_follows_changes_and_removals() {
 #[ignore]
 async fn test_feed_with_new_uids_on_each_request_keeps_its_copies() {
     let setup = Setup::new("feed-uids", "fields = [\"SUMMARY\"]").await;
-    let url = setup.server.url(&setup.source);
-    let feed = url.replacen(
-        "://",
-        &format!("://{}:{}@", setup.server.user, setup.server.password),
-        1,
-    );
-    setup.edit_config(
-        &format!("[calendars.source]\naccount = \"radicale\"\nurl = \"{url}\"\n"),
-        &format!("[calendars.source]\nics_url = \"{feed}\"\n"),
-    );
+    let feed = setup.use_feed().await;
     // A feed generated on each request: same events, new random UIDs
     let pickup = |uid: &str, day: usize| {
         event(uid, "")
             .replace(&format!("Secret {uid}"), "Paper")
             .replace("20300107T", &format!("203001{:02}T", day + 10))
     };
-    for day in 0..5 {
-        setup
-            .put(&format!("a{day}"), &pickup(&format!("a{day}"), day))
-            .await;
-    }
+    let events = |prefix: &str| -> Vec<String> {
+        (0..5)
+            .map(|day| pickup(&format!("{prefix}{day}"), day))
+            .collect()
+    };
+    feed.serve(&events("a"));
     setup.sync();
     let before = setup.sink_events().await;
     assert_eq!(before.len(), 5);
 
-    for day in 0..5 {
-        setup.delete(&format!("a{day}")).await;
-        setup
-            .put(&format!("b{day}"), &pickup(&format!("b{day}"), day))
-            .await;
-    }
+    feed.serve(&events("b"));
     setup.sync();
     let mut after = setup.sink_events().await;
     let mut before = before;

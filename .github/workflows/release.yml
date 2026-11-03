@@ -329,6 +329,10 @@ jobs:
         if: env.AUR_SSH_KEY != ''
         run: packaging/linux/aur/publish.sh dist
 
+  # Not yet in the needs of release: the release waits for it once it proved stable
+  e2e-servers:
+    uses: ./.github/workflows/e2e-servers.yml
+
   # Once the release is out, its Linux binaries become the container image
   image:
     needs: [release]

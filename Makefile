@@ -10,6 +10,7 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
 DIST    := dist
 MACOS_TARGET := aarch64-apple-darwin
 CARGO_TARGET_DIR ?= target
+SERVER ?= radicale
 
 # Lists every target with a "## " comment, grouped by the "##@" headings
 help: ## Show this help
@@ -65,8 +66,8 @@ test-ui: ## Tests of the menu bar app
 test-gtk: ## Tests of the Linux desktop app
 	cargo test --locked --features gtk --bin capycal-app
 
-test-caldav: ## End-to-end tests against a throwaway Radicale server (needs python3, curl)
-	scripts/test-caldav.sh
+test-caldav: ## End-to-end tests against a throwaway server: SERVER=radicale (default, needs python3, curl), stalwart or nextcloud (need Docker)
+	CAPYCAL_TEST_SERVER=$(SERVER) scripts/test-caldav.sh
 
 # The source is mounted read-only; build output and downloads live in Docker
 # volumes
