@@ -27,8 +27,9 @@ cask "capycal-app" do
         writable_paths: ["Library/Preferences"], writable_base: :home
   end
 
-  uninstall quit:      "app.capycal",
-            launchctl: "app.capycal-ui"
+  # No launchctl: Homebrew runs it on every upgrade, also with sudo (an admin
+  # password prompt), and removes the Start at Login agent; zap removes it
+  uninstall quit: "app.capycal"
 
   zap trash: [
     "~/Library/Application Support/capycal",
