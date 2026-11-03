@@ -34,6 +34,8 @@ const CSS: &str = "
 .capycal-stage:drop(active) { box-shadow: none; }
 .capycal-drop-mark { background: @accent_bg_color; min-height: 3px; border-radius: 2px; }
 row.capycal-plain { padding: 8px 12px; }
+/* The plus cut out of the circle, like macOS's plus.circle.fill */
+menubutton.capycal-add-step > button { color: @window_bg_color; }
 row.capycal-hinted .edit-icon { -gtk-icon-size: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; }
 row.expander list.nested > row.capycal-drop-row, list.boxed-list > row.capycal-drop-row { min-height: 0; padding: 0 12px; border-bottom: none; }
 row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
@@ -1008,7 +1010,7 @@ impl SettingsWindow {
                         .tooltip_text("Add a transform here")
                         .popover(&popover)
                         .halign(gtk::Align::Center)
-                        .css_classes(["circular", "suggested-action"])
+                        .css_classes(["circular", "suggested-action", "capycal-add-step"])
                         .build();
                     add.update_property(&[gtk::accessible::Property::Label(
                         "Add a transform here",
