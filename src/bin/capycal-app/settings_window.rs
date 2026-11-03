@@ -34,6 +34,7 @@ const CSS: &str = "
 .capycal-stage:drop(active) { box-shadow: none; }
 .capycal-drop-mark { background: @accent_bg_color; min-height: 3px; border-radius: 2px; }
 row.capycal-plain { padding: 8px 12px; }
+row.capycal-hinted .edit-icon { -gtk-icon-size: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; }
 row.expander list.nested > row.capycal-drop-row, list.boxed-list > row.capycal-drop-row { min-height: 0; padding: 0 12px; border-bottom: none; }
 row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-stage > list { transition: outline-color 150ms ease-in-out; outline: 2px solid transparent; outline-offset: 0; }
@@ -1386,11 +1387,26 @@ impl SettingsWindow {
                         .valign(gtk::Align::Center)
                         .css_classes(["dim-label"])
                         .build();
+                    // The row's own pencil would stand before the hint: its
+                    // copy follows it, before a password row's eye
+                    let pencil = gtk::Image::builder()
+                        .icon_name("document-edit-symbolic")
+                        .valign(gtk::Align::Center)
+                        .accessible_role(gtk::AccessibleRole::Presentation)
+                        .build();
+                    row.add_css_class("capycal-hinted");
                     row.add_suffix(&hint);
-                    // Before the eye a password row has at its end already
+                    row.add_suffix(&pencil);
                     if let Some(suffixes) = hint.parent().and_downcast::<gtk::Box>() {
                         suffixes.reorder_child_after(&hint, None::<&gtk::Widget>);
+                        suffixes.reorder_child_after(&pencil, Some(&hint));
                     }
+                    // Like the row's own: shown while the field has no focus
+                    let focus = gtk::EventControllerFocus::new();
+                    let shown = pencil.clone();
+                    focus.connect_enter(move |_| shown.set_visible(false));
+                    focus.connect_leave(move |_| pencil.set_visible(true));
+                    row.add_controller(focus);
                     if !suggestions.is_empty() {
                         suggestion_button(&row, suggestions);
                     }
