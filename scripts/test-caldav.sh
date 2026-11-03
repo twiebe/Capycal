@@ -104,6 +104,9 @@ start_nextcloud() {
     # The tests create more calendars than a user may by default
     docker exec -u www-data "$container" php occ config:app:set dav rateLimitCalendarCreation --value=100000 >/dev/null
     docker exec -u www-data "$container" php occ config:app:set dav maximumCalendarsSubscriptions --value=-1 >/dev/null
+    # An app password: a real password costs each request 200 ms of hashing
+    password="$(docker exec -u www-data -e NC_PASS="$password" "$container" \
+        php occ user:auth-tokens:add --password-from-env --name e2e test | grep -E '^[A-Za-z0-9]{20,}$')"
     url="http://127.0.0.1:$port/remote.php/dav/calendars/test/"
     user=test
     # SQLite takes one writer at a time
