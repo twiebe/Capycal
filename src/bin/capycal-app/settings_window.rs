@@ -19,6 +19,7 @@ const SIDEBAR_WIDTH: i32 = 200;
 const GAP_S: i32 = 4;
 const GAP_M: i32 = 8;
 const GAP_L: i32 = 12;
+const GAP_XL: i32 = 20;
 /// The column right of the pipeline steps that holds their drag handles.
 const GUTTER: i32 = 28;
 const CSS: &str = "
@@ -45,10 +46,8 @@ row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-round { border-radius: 999px; padding-left: 14px; padding-right: 14px; }
 .capycal-tag { border-radius: 999px; padding: 1px 8px; background: alpha(currentColor, 0.1); }
 .capycal-name { font-size: 22pt; font-weight: bold; padding: 0; min-height: 0; }
-/* A joint and a step's heading reach into the gaps around them, so the
-   line between the steps runs from box to box */
+/* A joint reaches into the gaps around it, so its line runs from box to box */
 .capycal-joint-row { margin-top: -8px; margin-bottom: -8px; }
-.capycal-stage-head { margin-bottom: -8px; }
 .capycal-number { background: alpha(@accent_bg_color, 0.15); color: @accent_color; border-radius: 999px; min-width: 20px; min-height: 20px; font-size: smaller; font-weight: bold; }
 ";
 
@@ -150,6 +149,8 @@ pub struct SettingsWindow {
     any_of: bool,
     /// The column right of the stage being drawn, for its drag handle.
     gutter: Option<gtk::Box>,
+    /// The joint just drawn, which takes the next step's heading.
+    joint: Option<gtk::Overlay>,
     /// The open row the next text fields go into, side by side.
     text_row: Option<gtk::Box>,
     /// The drop mark of each joint between transform steps.
@@ -352,6 +353,7 @@ impl SettingsWindow {
             any_of: false,
             text_row: None,
             gutter: None,
+            joint: None,
             marks: Rc::new(RefCell::new(Vec::new())),
             condition_marks: Rc::new(RefCell::new(Vec::new())),
             stages: Rc::new(RefCell::new(Vec::new())),
@@ -458,6 +460,7 @@ impl SettingsWindow {
         self.condition = None;
         self.any_of = false;
         self.gutter = None;
+        self.joint = None;
         self.text_row = None;
         self.marks.borrow_mut().clear();
         self.condition_marks.borrow_mut().clear();
@@ -883,21 +886,17 @@ impl SettingsWindow {
                 click.connect_pressed(move |_, _, _, _| activate());
                 stage.add_controller(click);
                 self.stages.borrow_mut().push(stage.clone());
-                // After a joint its line runs on past the heading to the box
-                if index == 0 {
-                    stage.append(&section_title(label));
-                } else {
-                    let line = gtk::Separator::builder()
-                        .orientation(gtk::Orientation::Vertical)
-                        .halign(gtk::Align::Center)
-                        .build();
-                    stage.append(
-                        &gtk::CenterBox::builder()
-                            .start_widget(&section_title(label))
-                            .center_widget(&line)
-                            .css_classes(["capycal-stage-head"])
-                            .build(),
-                    );
+                // After a joint its heading sits in the joint
+                let title = section_title(label);
+                match self.joint.take() {
+                    Some(joint) => {
+                        title.set_halign(gtk::Align::Start);
+                        title.set_valign(gtk::Align::End);
+                        title.set_margin_bottom(GAP_S);
+                        joint.add_overlay(&title);
+                        joint.set_measure_overlay(&title, true);
+                    }
+                    None => stage.append(&title),
                 }
                 stage.set_hexpand(true);
                 let gutter = gtk::Box::builder()
@@ -977,18 +976,21 @@ impl SettingsWindow {
                     .orientation(gtk::Orientation::Vertical)
                     .hexpand(true)
                     .build();
-                // Longer by the gaps the row reaches into
+                // Longer by the gaps the row reaches into; both grow alike
+                // when the next step's heading needs more room, so the "+"
+                // stays in the middle
                 let line = |height| {
                     gtk::Separator::builder()
                         .orientation(gtk::Orientation::Vertical)
                         .height_request(height)
+                        .vexpand(true)
                         .halign(gtk::Align::Center)
                         .build()
                 };
                 joint.append(&line(if id.is_some() {
-                    GAP_M + GAP_L
+                    GAP_M + GAP_XL
                 } else {
-                    2 * GAP_M + GAP_L
+                    2 * GAP_M + GAP_XL + GAP_L
                 }));
                 if let Some(id) = id {
                     // A menu of the transforms; the first item is the title
@@ -1068,16 +1070,20 @@ impl SettingsWindow {
                     holder.add_overlay(&add);
                     holder.set_measure_overlay(&add, true);
                     joint.append(&holder);
-                    joint.append(&line(GAP_M + GAP_L));
+                    joint.append(&line(GAP_M + GAP_XL));
                     self.marks.borrow_mut().push(mark.upcast());
                 }
                 let row = gtk::Box::builder()
                     .spacing(GAP_S)
                     .css_classes(["capycal-joint-row"])
                     .build();
-                row.append(&joint);
+                // The next step's heading goes in its lower corner, beside
+                // one unbroken line from box to box
+                let holder = gtk::Overlay::builder().child(&joint).hexpand(true).build();
+                row.append(&holder);
                 row.append(&gtk::Box::builder().width_request(GUTTER).build());
                 self.editor.append(&row);
+                self.joint = Some(holder);
                 Drawn::None
             }
             Control::Header {
