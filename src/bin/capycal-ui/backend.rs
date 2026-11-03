@@ -2095,23 +2095,24 @@ fields = ["DTSTART"]
     #[tokio::test]
     async fn test_enable_starts_a_purged_sync_whose_disable_failed() {
         use std::os::unix::fs::PermissionsExt;
-        let server = sink_with_one_copy().await;
         let dir = test_dir("purge-readonly");
+        // root (a CI container) writes into a read-only directory anyway:
+        // nothing fails there. Checked before the server, whose mocks
+        // expect the purge
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let writable = std::fs::write(dir.join("probe"), "").is_ok();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        if writable {
+            let _ = std::fs::remove_dir_all(&dir);
+            eprintln!("skipped: a read-only directory is writable for this user");
+            return;
+        }
+        let server = sink_with_one_copy().await;
         let path = write_config(&dir, "a-to-b", &server);
         std::fs::create_dir_all(dir.join("state")).unwrap();
         let mut backend = Running::start(path);
         backend.running(&["a-to-b"]).await;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
-        // root (a CI container) writes into it anyway: nothing fails there
-        let probe = dir.join("probe");
-        if std::fs::write(&probe, "").is_ok() {
-            let _ = std::fs::remove_file(&probe);
-            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-            backend.stop().await;
-            let _ = std::fs::remove_dir_all(&dir);
-            eprintln!("skipped: a read-only directory is writable for this user");
-            return;
-        }
         backend
             .tx
             .send(Command::Purge(vec!["a-to-b".into()]))
