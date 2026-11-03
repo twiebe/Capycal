@@ -32,7 +32,7 @@ const CSS: &str = "
 .capycal-side-icon { background: @accent_bg_color; color: @accent_fg_color; border-radius: 6px; padding: 3px; }
 .capycal-side-icon.off { background: alpha(@window_fg_color, 0.35); }
 .capycal-side-icon.problem { background: #e66100; }
-.capycal-stage:drop(active) { box-shadow: none; }
+.capycal-stage:drop(active), .capycal-joint-row:drop(active) { box-shadow: none; }
 .capycal-drop-mark { background: @accent_bg_color; min-height: 3px; border-radius: 2px; }
 row.capycal-plain { padding: 8px 12px; }
 /* The plus cut out of the circle, like macOS's plus.circle.fill */
@@ -637,6 +637,46 @@ impl SettingsWindow {
         }
     }
 
+    /// A drop target for dragged steps: `gap` names the place one would
+    /// land at the pointer, whose mark shows unless it stays where it is.
+    fn step_drop_target(
+        &self,
+        gap: impl Fn(&gtk::DropTarget, f64) -> usize + Clone + 'static,
+    ) -> gtk::DropTarget {
+        let target = gtk::DropTarget::new(u32::static_type(), gtk::gdk::DragAction::MOVE);
+        target.set_preload(true);
+        let marks = self.marks.clone();
+        let show = move |shown: Option<usize>| {
+            for (i, mark) in marks.borrow().iter().enumerate() {
+                mark.set_opacity(if shown == Some(i) { 1.0 } else { 0.0 });
+            }
+        };
+        let (at, shown) = (gap.clone(), show.clone());
+        target.connect_motion(move |target, _, y| {
+            let g = at(target, y);
+            // Next to itself it would stay where it is
+            let from = target.value().and_then(|v| v.get::<u32>().ok());
+            let moves = from.is_some_and(|f| g != f as usize && g != f as usize + 1);
+            shown(moves.then_some(g));
+            gtk::gdk::DragAction::MOVE
+        });
+        let shown = show.clone();
+        target.connect_leave(move |_| shown(None));
+        let send = self.sender();
+        target.connect_drop(move |target, value, _, y| {
+            show(None);
+            let Ok(from) = value.get::<u32>() else {
+                return false;
+            };
+            send(SettingsInput::Moved(
+                FieldId::TransformRow(from as usize),
+                gap(target, y),
+            ));
+            true
+        });
+        target
+    }
+
     /// Take dropped conditions on the open container: each lands at the
     /// drop mark nearest to the pointer, unless that one keeps it where it
     /// is.
@@ -1082,6 +1122,11 @@ impl SettingsWindow {
                 let holder = gtk::Overlay::builder().child(&joint).hexpand(true).build();
                 row.append(&holder);
                 row.append(&gtk::Box::builder().width_request(GUTTER).build());
+                // A step dragged over the gap between two steps lands there
+                if let Some(FieldId::InsertTransform(at)) = id {
+                    let at = *at;
+                    row.add_controller(self.step_drop_target(move |_, _| at));
+                }
                 self.editor.append(&row);
                 self.joint = Some(holder);
                 Drawn::None
@@ -1282,51 +1327,15 @@ impl SettingsWindow {
                     Some(gutter) => gutter.append(&handle),
                     None => expander.add_prefix(&handle),
                 }
-                let target = gtk::DropTarget::new(u32::static_type(), gtk::gdk::DragAction::MOVE);
-                target.set_preload(true);
                 let at = *index;
                 // The gap above or below this step, by the pointer's half
-                let gap = move |target: &gtk::DropTarget, y: f64| {
+                let target = self.step_drop_target(move |target, y| {
                     let height = target.widget().map_or(0, |w| w.height());
                     if y < f64::from(height) / 2.0 {
                         at
                     } else {
                         at + 1
                     }
-                };
-                let marks = self.marks.clone();
-                let show = move |shown: Option<usize>| {
-                    for (i, mark) in marks.borrow().iter().enumerate() {
-                        mark.set_opacity(if shown == Some(i) { 1.0 } else { 0.0 });
-                    }
-                };
-                let from_of = |target: &gtk::DropTarget| {
-                    target
-                        .value()
-                        .and_then(|v| v.get::<u32>().ok())
-                        .map(|f| f as usize)
-                };
-                let shown = show.clone();
-                target.connect_motion(move |target, _, y| {
-                    let g = gap(target, y);
-                    // Next to itself it would stay where it is
-                    let moves = from_of(target).is_some_and(|f| g != f && g != f + 1);
-                    shown(moves.then_some(g));
-                    gtk::gdk::DragAction::MOVE
-                });
-                let shown = show.clone();
-                target.connect_leave(move |_| shown(None));
-                let s = send.clone();
-                target.connect_drop(move |target, value, _, y| {
-                    show(None);
-                    let Ok(from) = value.get::<u32>() else {
-                        return false;
-                    };
-                    s(SettingsInput::Moved(
-                        FieldId::TransformRow(from as usize),
-                        gap(target, y),
-                    ));
-                    true
                 });
                 self.section.outer.add_controller(target);
                 expander.add_prefix(
