@@ -45,7 +45,10 @@ row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-round { border-radius: 999px; padding-left: 14px; padding-right: 14px; }
 .capycal-tag { border-radius: 999px; padding: 1px 8px; background: alpha(currentColor, 0.1); }
 .capycal-name { font-size: 22pt; font-weight: bold; padding: 0; min-height: 0; }
-.capycal-joint { min-height: 14px; }
+/* A joint and a step's heading reach into the gaps around them, so the
+   line between the steps runs from box to box */
+.capycal-joint-row { margin-top: -8px; margin-bottom: -8px; }
+.capycal-stage-head { margin-bottom: -8px; }
 .capycal-number { background: alpha(@accent_bg_color, 0.15); color: @accent_color; border-radius: 999px; min-width: 20px; min-height: 20px; font-size: smaller; font-weight: bold; }
 ";
 
@@ -880,7 +883,22 @@ impl SettingsWindow {
                 click.connect_pressed(move |_, _, _, _| activate());
                 stage.add_controller(click);
                 self.stages.borrow_mut().push(stage.clone());
-                stage.append(&section_title(label));
+                // After a joint its line runs on past the heading to the box
+                if index == 0 {
+                    stage.append(&section_title(label));
+                } else {
+                    let line = gtk::Separator::builder()
+                        .orientation(gtk::Orientation::Vertical)
+                        .halign(gtk::Align::Center)
+                        .build();
+                    stage.append(
+                        &gtk::CenterBox::builder()
+                            .start_widget(&section_title(label))
+                            .center_widget(&line)
+                            .css_classes(["capycal-stage-head"])
+                            .build(),
+                    );
+                }
                 stage.set_hexpand(true);
                 let gutter = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
@@ -958,16 +976,20 @@ impl SettingsWindow {
                 let joint = gtk::Box::builder()
                     .orientation(gtk::Orientation::Vertical)
                     .hexpand(true)
-                    .css_classes(["capycal-joint"])
                     .build();
-                let line = || {
+                // Longer by the gaps the row reaches into
+                let line = |height| {
                     gtk::Separator::builder()
                         .orientation(gtk::Orientation::Vertical)
-                        .height_request(12)
+                        .height_request(height)
                         .halign(gtk::Align::Center)
                         .build()
                 };
-                joint.append(&line());
+                joint.append(&line(if id.is_some() {
+                    GAP_M + GAP_L
+                } else {
+                    2 * GAP_M + GAP_L
+                }));
                 if let Some(id) = id {
                     // A menu of the transforms; the first item is the title
                     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -1046,10 +1068,13 @@ impl SettingsWindow {
                     holder.add_overlay(&add);
                     holder.set_measure_overlay(&add, true);
                     joint.append(&holder);
-                    joint.append(&line());
+                    joint.append(&line(GAP_M + GAP_L));
                     self.marks.borrow_mut().push(mark.upcast());
                 }
-                let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+                let row = gtk::Box::builder()
+                    .spacing(GAP_S)
+                    .css_classes(["capycal-joint-row"])
+                    .build();
                 row.append(&joint);
                 row.append(&gtk::Box::builder().width_request(GUTTER).build());
                 self.editor.append(&row);
