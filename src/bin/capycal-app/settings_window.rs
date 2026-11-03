@@ -34,7 +34,6 @@ const CSS: &str = "
 .capycal-stage:drop(active) { box-shadow: none; }
 .capycal-drop-mark { background: @accent_bg_color; min-height: 3px; border-radius: 2px; }
 row.capycal-plain { padding: 8px 12px; }
-row.entry text > placeholder { color: alpha(currentColor, 0.5); }
 row.expander list.nested > row.capycal-drop-row, list.boxed-list > row.capycal-drop-row { min-height: 0; padding: 0 12px; border-bottom: none; }
 row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-stage > list { transition: outline-color 150ms ease-in-out; outline: 2px solid transparent; outline-offset: 0; }
@@ -66,6 +65,8 @@ enum Drawn {
     Text {
         entry: gtk::Editable,
         error: gtk::Label,
+        /// A row's placeholder, at its end while it is empty.
+        hint: Option<gtk::Label>,
     },
     /// A switch row, or a row with a check box.
     Check(adw::ActionRow, Option<gtk::CheckButton>),
@@ -500,6 +501,7 @@ impl SettingsWindow {
         let icon = gtk::Image::builder()
             .icon_name("emblem-system-symbolic")
             .pixel_size(14)
+            .valign(gtk::Align::Center)
             .css_classes(["capycal-side-icon"])
             .build();
         // General turns orange while the config has a problem
@@ -545,6 +547,7 @@ impl SettingsWindow {
                         "network-server-symbolic"
                     })
                     .pixel_size(14)
+                    .valign(gtk::Align::Center)
                     .css_classes(["capycal-side-icon"])
                     .build();
                 side_icon_state(&icon, sync, item.active, item.problem);
@@ -1357,6 +1360,7 @@ impl SettingsWindow {
                 let changed = move |e: &gtk::Editable| {
                     send_text(SettingsInput::Text(id_text.clone(), e.text().to_string()))
                 };
+                let mut hint_label = None;
                 let entry: gtk::Editable = if let Some(fields) = &self.text_row {
                     // A short field with its label after it
                     let e = gtk::Entry::builder()
@@ -1366,20 +1370,42 @@ impl SettingsWindow {
                     fields.append(&e);
                     fields.append(&gtk::Label::builder().label(label).margin_end(GAP_L).build());
                     e.upcast()
-                } else if *secure {
-                    let row = adw::PasswordEntryRow::builder().title(label).build();
-                    self.add_row(&row);
-                    row.upcast()
                 } else {
-                    let row = adw::EntryRow::builder().title(label).build();
+                    let row: adw::EntryRow = if *secure {
+                        adw::PasswordEntryRow::builder()
+                            .title(label)
+                            .build()
+                            .upcast()
+                    } else {
+                        adw::EntryRow::builder().title(label).build()
+                    };
+                    // An entry row draws a placeholder over its title, and
+                    // only while typing: the hint stays at its end instead
+                    let hint = gtk::Label::builder()
+                        .ellipsize(gtk::pango::EllipsizeMode::End)
+                        .valign(gtk::Align::Center)
+                        .css_classes(["dim-label"])
+                        .build();
+                    row.add_suffix(&hint);
+                    // Before the eye a password row has at its end already
+                    if let Some(suffixes) = hint.parent().and_downcast::<gtk::Box>() {
+                        suffixes.reorder_child_after(&hint, None::<&gtk::Widget>);
+                    }
                     if !suggestions.is_empty() {
                         suggestion_button(&row, suggestions);
                     }
                     self.add_row(&row);
+                    hint_label = Some(hint);
                     row.upcast()
                 };
-                set_placeholder(&entry, placeholder);
                 entry.set_text(value);
+                show_placeholder(&entry, hint_label.as_ref(), placeholder);
+                if let Some(hint) = &hint_label {
+                    let hint = hint.clone();
+                    entry.connect_changed(move |e| {
+                        hint.set_visible(e.text().is_empty() && !hint.label().is_empty())
+                    });
+                }
                 entry.set_sensitive(*enabled);
                 report_leave(&entry, id, send);
                 entry.connect_changed(changed);
@@ -1389,6 +1415,7 @@ impl SettingsWindow {
                 Drawn::Text {
                     entry,
                     error: error_label,
+                    hint: hint_label,
                 }
             }
             Control::Check {
@@ -1708,7 +1735,11 @@ impl SettingsWindow {
                         enabled,
                         ..
                     },
-                    Drawn::Text { entry, error: e },
+                    Drawn::Text {
+                        entry,
+                        error: e,
+                        hint,
+                    },
                 ) => {
                     entry.set_sensitive(*enabled);
                     // Unless a move put another condition there
@@ -1719,7 +1750,7 @@ impl SettingsWindow {
                     } else {
                         set_unless_focused(entry, value);
                     }
-                    set_placeholder(entry, placeholder);
+                    show_placeholder(entry, hint.as_ref(), placeholder);
                     show_warning(e, error.as_deref());
                 }
                 (Control::Check { on, label, .. }, Drawn::Check(row, check)) => {
@@ -2105,13 +2136,19 @@ fn set_shown(label: &gtk::Label, shown: bool) {
     }
 }
 
-/// The text a field shows while empty; an entry row shows it below its
-/// title once typed in.
-fn set_placeholder(entry: &gtk::Editable, text: &str) {
-    if let Some(e) = entry.downcast_ref::<gtk::Entry>() {
-        e.set_placeholder_text(Some(text));
-    } else if let Some(t) = entry.delegate().and_downcast::<gtk::Text>() {
-        t.set_placeholder_text(Some(text));
+/// The text a field shows while empty: an entry's placeholder, or a row's
+/// hint at its end.
+fn show_placeholder(entry: &gtk::Editable, hint: Option<&gtk::Label>, text: &str) {
+    match hint {
+        Some(hint) => {
+            hint.set_label(text);
+            hint.set_visible(entry.text().is_empty() && !text.is_empty());
+        }
+        None => {
+            if let Some(e) = entry.downcast_ref::<gtk::Entry>() {
+                e.set_placeholder_text(Some(text));
+            }
+        }
     }
 }
 
