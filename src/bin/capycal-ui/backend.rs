@@ -2102,6 +2102,16 @@ fields = ["DTSTART"]
         let mut backend = Running::start(path);
         backend.running(&["a-to-b"]).await;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        // root (a CI container) writes into it anyway: nothing fails there
+        let probe = dir.join("probe");
+        if std::fs::write(&probe, "").is_ok() {
+            let _ = std::fs::remove_file(&probe);
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+            backend.stop().await;
+            let _ = std::fs::remove_dir_all(&dir);
+            eprintln!("skipped: a read-only directory is writable for this user");
+            return;
+        }
         backend
             .tx
             .send(Command::Purge(vec!["a-to-b".into()]))
