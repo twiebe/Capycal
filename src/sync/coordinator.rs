@@ -333,6 +333,10 @@ impl Coordinator {
                 runner.sync_once().await
             };
             match result {
+                Ok(stats) if stats.errors > 0 => {
+                    error!(sync = %sync_config.name, errors = stats.errors, "sync done with errors");
+                    all_ok = false;
+                }
                 Ok(_) => info!(sync = %sync_config.name, "sync done"),
                 Err(e) => {
                     error!(sync = %sync_config.name, error = %e, "sync failed");
@@ -620,6 +624,16 @@ transforms = [
     /// Serve one source event and accept its puts. A sync without state
     /// starts with a full sync, which also lists the (empty) sink.
     async fn mount_source_and_sink(server: &MockServer, expected_cycles: u64) {
+        mount_source(server, expected_cycles).await;
+        Mock::given(method("PUT"))
+            .and(path_regex(r"^/home/capycal-[0-9a-f-]+\.ics$"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(expected_cycles)
+            .mount(server)
+            .await;
+    }
+
+    async fn mount_source(server: &MockServer, expected_cycles: u64) {
         mount_empty_sink_listing(server).await;
         Mock::given(method("REPORT"))
             .and(path_regex("^/work/?$"))
@@ -631,12 +645,6 @@ transforms = [
 </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
 <d:sync-token>tok-1</d:sync-token></d:multistatus>"#
             )))
-            .expect(expected_cycles)
-            .mount(server)
-            .await;
-        Mock::given(method("PUT"))
-            .and(path_regex(r"^/home/capycal-[0-9a-f-]+\.ics$"))
-            .respond_with(ResponseTemplate::new(201))
             .expect(expected_cycles)
             .mount(server)
             .await;
@@ -677,6 +685,22 @@ transforms = [
 
         assert!(!Coordinator::run_once(&cfg, false).await.unwrap());
         assert!(!dir.join("work-to-home.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_run_once_reports_an_event_it_could_not_write() {
+        let server = MockServer::start().await;
+        mount_source(&server, 1).await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(403))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let dir = state_dir("run-once-put");
+        let cfg = config(&server, &dir, "\"p\"", "");
+
+        assert!(!Coordinator::run_once(&cfg, false).await.unwrap());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -34,7 +34,7 @@ Without `--once`, `--validate`, `--generate-config`, discovery or purge options,
 | Code | Meaning |
 |---|---|
 | `0` | Success. For `--once`: every sync completed |
-| `1` | Any error: invalid config, a config without syncs (also for `--validate`), lock held by another process, a failed sync in `--once`, a purge or discovery that could not list the calendar. Single failed deletes during a purge are logged and counted but do not change the exit code |
+| `1` | Any error: invalid config, a config without syncs (also for `--validate`), lock held by another process, a sync in `--once` that failed or could not write or delete an event, a purge or discovery that could not list the calendar. Single failed deletes during a purge are logged and counted but do not change the exit code |
 
 Errors are printed to stderr or logged; with `log_format = "json"`, errors after config loading are JSON log lines.
 

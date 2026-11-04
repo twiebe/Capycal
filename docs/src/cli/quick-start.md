@@ -84,7 +84,7 @@ capycal --validate
 capycal --once -v
 ```
 
-`--validate` parses the config and checks references, transforms and placeholders without contacting a server. `--once` runs every sync one time and exits with a non-zero code if any sync failed; `-v` adds debug output.
+`--validate` parses the config and checks references, transforms and placeholders without contacting a server. `--once` runs every sync one time and exits with a non-zero code if any sync failed or could not write or delete an event; `-v` adds debug output.
 
 ## 5. Run as a daemon
 
