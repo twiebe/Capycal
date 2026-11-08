@@ -1,6 +1,6 @@
 # Calendars
 
-Each `[calendars.<name>]` table defines one calendar. The type follows from the keys: a table with `eventkit_calendar` is a Calendar.app calendar, one with `ics_url` a [calendar feed](#calendar-feeds-ical-address), any other table is a CalDAV calendar. A calendar can be the source of some syncs and the target of others; a feed can only be a source.
+Each `[calendars.<name>]` table defines one calendar. The type follows from the keys: a table with `eventkit_calendar` is a Calendar.app calendar, one with `ics_url` a [calendar feed](#calendar-feeds-ical-address), one with `jmap_calendar` a [JMAP calendar](#jmap), any other table is a CalDAV calendar. A calendar can be the source of some syncs and the target of others; a feed can only be a source.
 
 The `<name>` is yours to choose. It is used in `source` / `target` of syncs, in the `{{source_name}}` placeholder and in the markers on created events.
 
@@ -8,9 +8,9 @@ The `<name>` is yours to choose. It is used in `source` / `target` of syncs, in 
 
 ## Accounts
 
-> **In the app:** **Add Account…** in Settings asks for a name, the server URL, the user name and the password; **Test Connection** looks up the calendars with them.
+> **In the app:** **Add Account…** in Settings asks for the protocol (**CalDAV** or **JMAP**), a name, the server URL, the user name and the password; **Test Connection** looks up the calendars with them. A saved account keeps its protocol.
 
-A CalDAV calendar belongs to an `[accounts.<name>]` table, which holds the server and the credentials. Several calendars on one server share one account, so the password is set once.
+A CalDAV or JMAP calendar belongs to an `[accounts.<name>]` table, which holds the server and the credentials. Several calendars on one server share one account, so the password is set once.
 
 ```toml
 [accounts.nextcloud]
@@ -32,6 +32,7 @@ url = "https://cloud.example.org/remote.php/dav/calendars/alice/work-blockers/"
 | `url` | yes | Server address, the one you would give a calendar app; `capycal --discover` starts from it |
 | `username` | yes | User name for HTTP Basic authentication |
 | `password` | yes | A [credential](#passwords) |
+| `protocol` | no, default `"caldav"` | `"caldav"`, or `"jmap"` for a [JMAP](#jmap) server |
 
 ## CalDAV
 
@@ -122,11 +123,46 @@ The service decides how fresh its feed is. Google updates the secret address onl
 
 Treat the address like a password: anyone who has it can read the calendar. It never appears in Capycal's logs, and `{{source_url}}` gives `ics://feed` for a feed. To keep it out of the config file, use another credential form, for example `ics_url = { keychain = "google-feed" }`; the desktop app then shows the address as set in the config file. A feed behind HTTP Basic authentication takes the user name and password in the address: `https://user:password@example.com/calendar.ics`. If the address leaks, reset it with the service (Google: **Reset** next to the secret address) and enter the new one.
 
+## JMAP
+
+> **In the app:** choose **JMAP** under **Protocol** when you add the account; the calendar menus of a sync list its calendars like those of a CalDAV account. `concurrency` is **Parallel writes** in the Advanced settings of a sync that writes into the calendar.
+
+Servers with JMAP for Calendars (`urn:ietf:params:jmap:calendars`), such as [Stalwart](https://stalw.art/), work as source and as target, also together with any other kind of calendar.
+
+```toml
+[accounts.mail]
+url = "https://mail.example.org/"
+username = "alice@example.org"
+password = { env = "CAPYCAL_MAIL_PASSWORD" }
+protocol = "jmap"
+
+[calendars.team]
+account = "mail"
+jmap_calendar = "Team"
+```
+
+| Key | Required | Description |
+|---|---|---|
+| `account` | yes | Name of an [account](#accounts) with `protocol = "jmap"` |
+| `jmap_calendar` | yes | Id or name of the calendar. The id stays the same when the calendar is renamed; a name must be unique in the account |
+| `concurrency` | no, default `2` | Maximum events written to this calendar at the same time as a target, and parallel deletes of a purge |
+
+The account's `url` is the server (Capycal asks for `/.well-known/jmap`) or the address of its JMAP session. `capycal --discover-jmap <server>` lists the calendars with their ids.
+
+What is different from CalDAV:
+
+- **Only the account's own calendars.** Capycal reads the primary calendar account of the JMAP session; calendars another user shares as an account of their own are not listed.
+- **Password sign-in.** Capycal signs in with HTTP Basic authentication, like for CalDAV. Servers that accept only tokens through a web sign-in cannot be used.
+- **Requests stay on the server of the session.** If the session names another address for its API, as a server behind a proxy or a port mapping may do, Capycal keeps the path but stays on the address it reached the session at, so the password never goes to another host. For the same reason a `/.well-known/jmap` that redirects to another host fails with "... sends the session to ..., use that as the server URL": put that address into `url`.
+- **Invitations.** Capycal does not ask the server to send any: JMAP's `sendSchedulingMessages` stays off, also for a copy that keeps `ATTENDEE` or `ORGANIZER`.
+- **Other properties.** Events travel as JSCalendar and are translated. Times, recurrence with its exceptions, `SUMMARY`, `DESCRIPTION`, `LOCATION`, `URL`, `CATEGORIES`, `CLASS`, `COLOR`, `PRIORITY`, `CONFERENCE`, `ORGANIZER`, `ATTENDEE`, `STATUS`, `TRANSP` and `VALARM` arrive; other properties a `fields` entry or a `set_field` names, like `X-...`, are not written to a JMAP target. A reminder read from a JMAP source is a display alarm, whatever action it had.
+- **The markers** are the properties `capycal.app:source` and `capycal.app:sync`. Over CalDAV the same server shows them under other names, so before you move a target from JMAP to CalDAV, remove its copies with `capycal --purge <sync>`. The other way round needs nothing: copies written over CalDAV are found by their `X-CAPYCAL-*` properties and taken over.
+
 ## Passwords
 
 > **In the app:** a password typed into an account is stored in the Keychain (macOS) or the Secret Service (Linux) and written as `password = { keychain = "<account>" }`. A password from `env`, `file` or `command` stays as it is until you type a new one.
 
-The `password` of a CalDAV account (`[accounts.<name>]`) can come from five places:
+The `password` of an account (`[accounts.<name>]`) can come from five places:
 
 ```toml
 password = { env = "CAPYCAL_WORK_PASSWORD" }   # environment variable

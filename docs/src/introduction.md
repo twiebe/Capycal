@@ -34,7 +34,7 @@ This book follows that split. After [Installation](installation.md), **Desktop a
 
 ## Terms used in this book
 
-- **Calendar**: a named entry under `[calendars.<name>]`: a CalDAV collection, a Calendar.app calendar or a read-only feed (an iCal address). A calendar can be the source of one sync and the target of another.
+- **Calendar**: a named entry under `[calendars.<name>]`: a CalDAV collection, a JMAP calendar, a Calendar.app calendar or a read-only feed (an iCal address). A calendar can be the source of one sync and the target of another.
 - **Sync**: one `[syncs.<name>]` table that copies events from a source to a target every `interval`.
 - **Blocker**: a stripped-down copy of an event that only blocks the time slot.
 - **Marker**: the `X-CAPYCAL-SOURCE` / `X-CAPYCAL-SYNC` properties (or a `[capycal:...]` line in the notes for Calendar.app) on every event Capycal creates. It names the sync and the source event, so Capycal can find its events again without its state files.

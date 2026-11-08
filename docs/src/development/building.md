@@ -14,6 +14,7 @@ make test-ui      # tests of the menu bar app
 make test-caldav  # end-to-end tests against a throwaway Radicale server
 make test-caldav SERVER=stalwart  # the same against Stalwart, or SERVER=nextcloud; needs Docker
 make test-caldav-docker # the same in a Linux container, needs only Docker
+make test-jmap    # JMAP end-to-end tests against a throwaway Stalwart; needs Docker
 make test-eventkit # tests against Calendar.app (macOS)
 make lint         # cargo fmt --check + clippy -D warnings, without and with the app
 make fmt          # format the code

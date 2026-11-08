@@ -58,7 +58,26 @@ pub enum LogFormat {
     Json,
 }
 
-/// A CalDAV account: the server its calendars are discovered on and the
+/// How an account's server is spoken to.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Protocol {
+    #[default]
+    Caldav,
+    Jmap,
+}
+
+impl Protocol {
+    /// The name in the config file and the apps.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Protocol::Caldav => "caldav",
+            Protocol::Jmap => "jmap",
+        }
+    }
+}
+
+/// An account: the server its calendars are discovered on and the
 /// credentials they use.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -66,6 +85,8 @@ pub struct AccountConfig {
     pub url: String,
     pub username: String,
     pub password: Credential,
+    #[serde(default)]
+    pub protocol: Protocol,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -83,6 +104,9 @@ pub struct CalendarConfig {
     // private feed is as secret as a password
     #[serde(default)]
     pub ics_url: Option<Credential>,
+    // A calendar of a JMAP account, by id or name
+    #[serde(default)]
+    pub jmap_calendar: Option<String>,
     // Concurrent event writes to this calendar as a sink, and deletes of a purge
     #[serde(default = "default_concurrency")]
     pub concurrency: usize,
@@ -97,6 +121,20 @@ impl CalendarConfig {
     /// A feed calendar (`ics_url`), only usable as a source.
     pub fn is_ics(&self) -> bool {
         self.ics_url.is_some()
+    }
+
+    /// A calendar of a JMAP account (`jmap_calendar`).
+    pub fn is_jmap(&self) -> bool {
+        self.jmap_calendar.is_some()
+    }
+
+    /// Where the calendar is, for logs and questions. A feed's address is a
+    /// secret and has none.
+    pub fn location(&self) -> Option<&str> {
+        self.eventkit_calendar
+            .as_deref()
+            .or(self.jmap_calendar.as_deref())
+            .or(self.url.as_deref())
     }
 
     pub fn url_or_err(&self, name: &str) -> Result<&str> {
@@ -664,10 +702,34 @@ impl Config {
 
         for (name, cal) in &self.calendars {
             if cal.is_ics() {
-                if cal.account.is_some() || cal.url.is_some() || cal.is_eventkit() {
+                if cal.account.is_some() || cal.url.is_some() || cal.is_eventkit() || cal.is_jmap()
+                {
                     return Err(Error::Config(format!(
-                        "calendar '{name}': ics_url takes no 'account', 'url' or 'eventkit_calendar'"
+                        "calendar '{name}': ics_url takes no 'account', 'url', 'eventkit_calendar' or 'jmap_calendar'"
                     )));
+                }
+            } else if cal.is_jmap() {
+                if cal.url.is_some() || cal.is_eventkit() {
+                    return Err(Error::Config(format!(
+                        "calendar '{name}': jmap_calendar takes no 'url' or 'eventkit_calendar'"
+                    )));
+                }
+                let account = cal.account.as_deref().ok_or_else(|| {
+                    Error::Config(format!("calendar '{name}': requires 'account'"))
+                })?;
+                match self.accounts.get(account) {
+                    None => {
+                        return Err(Error::Config(format!(
+                            "calendar '{name}' references unknown account '{account}'"
+                        )));
+                    }
+                    Some(a) if a.protocol != Protocol::Jmap => {
+                        return Err(Error::Config(format!(
+                            "calendar '{name}': jmap_calendar needs an account with \
+                             protocol = \"jmap\", but account '{account}' uses CalDAV"
+                        )));
+                    }
+                    Some(_) => {}
                 }
             } else if cal.is_eventkit() {
                 if cal.account.is_some() {
@@ -680,11 +742,6 @@ impl Config {
                     "calendar '{name}': eventkit_calendar is only supported on macOS"
                 )));
             } else {
-                if cal.url.is_none() {
-                    return Err(Error::Config(format!(
-                        "calendar '{name}': missing 'url' (or set 'eventkit_calendar' for macOS Calendar.app)"
-                    )));
-                }
                 match cal.account.as_deref() {
                     None => {
                         return Err(Error::Config(format!(
@@ -696,7 +753,23 @@ impl Config {
                             "calendar '{name}' references unknown account '{account}'"
                         )));
                     }
+                    Some(account) if self.accounts[account].protocol == Protocol::Jmap => {
+                        let instead = if cal.url.is_some() {
+                            " instead of 'url'"
+                        } else {
+                            ""
+                        };
+                        return Err(Error::Config(format!(
+                            "calendar '{name}': account '{account}' uses JMAP, name the calendar \
+                             with 'jmap_calendar'{instead}"
+                        )));
+                    }
                     Some(_) => {}
+                }
+                if cal.url.is_none() {
+                    return Err(Error::Config(format!(
+                        "calendar '{name}': missing 'url' (or set 'eventkit_calendar' for macOS Calendar.app)"
+                    )));
                 }
             }
         }
@@ -753,18 +826,25 @@ impl SyncConfig {
             Some(other) => format!("|{other:?}"),
             None => String::new(),
         };
+        // Likewise only for a JMAP calendar
+        let jmap = |cal: &CalendarConfig| match &cal.jmap_calendar {
+            Some(id) => format!("|jmap:{id}"),
+            None => String::new(),
+        };
         let mut lines = vec![
             format!(
-                "source={}|{}|{}{feed}",
+                "source={}|{}|{}{feed}{}",
                 self.source,
                 opt(&source.url),
-                opt(&source.eventkit_calendar)
+                opt(&source.eventkit_calendar),
+                jmap(source)
             ),
             format!(
-                "target={}|{}|{}",
+                "target={}|{}|{}{}",
                 self.target,
                 opt(&target.url),
-                opt(&target.eventkit_calendar)
+                opt(&target.eventkit_calendar),
+                jmap(target)
             ),
             format!("fields={}", fields.join(",")),
             // The days count only while a range applies
@@ -2717,6 +2797,63 @@ password = "secret"
     }
 
     #[test]
+    fn test_jmap_calendars_need_a_jmap_account() {
+        let config = |account_extra: &str, calendar: &str| {
+            let toml = format!(
+                "[accounts.a]\nurl = \"https://x/\"\nusername = \"u\"\npassword = \"p\"\n{account_extra}\n\
+                 [calendars.c]\n{calendar}\n"
+            );
+            toml::from_str::<Config>(&toml).unwrap().validate()
+        };
+        let jmap = "protocol = \"jmap\"";
+        assert!(config(jmap, "account = \"a\"\njmap_calendar = \"Team\"").is_ok());
+        let error = |result: Result<()>| result.unwrap_err().to_string();
+        assert!(
+            error(config("", "account = \"a\"\njmap_calendar = \"Team\""))
+                .contains("needs an account with protocol = \"jmap\"")
+        );
+        assert!(
+            error(config(jmap, "account = \"a\"\nurl = \"https://x/c/\""))
+                .contains("instead of 'url'")
+        );
+        let neither = error(config(jmap, "account = \"a\""));
+        assert!(neither.contains("with 'jmap_calendar'"), "{neither}");
+        assert!(!neither.contains("'url'"), "{neither}");
+        assert!(error(config(jmap, "jmap_calendar = \"Team\"")).contains("requires 'account'"));
+        assert!(
+            error(config(jmap, "account = \"z\"\njmap_calendar = \"Team\""))
+                .contains("unknown account 'z'")
+        );
+        assert!(
+            error(config(
+                jmap,
+                "account = \"a\"\njmap_calendar = \"Team\"\nurl = \"https://x/\""
+            ))
+            .contains("takes no 'url'")
+        );
+        assert!(
+            error(config(
+                jmap,
+                "ics_url = \"https://x/f.ics\"\njmap_calendar = \"Team\""
+            ))
+            .contains("ics_url takes no")
+        );
+    }
+
+    #[test]
+    fn test_output_key_changes_only_with_a_jmap_calendar() {
+        let sync = SyncConfig::new("s", "a", "b");
+        let caldav: CalendarConfig =
+            toml::from_str("account = \"a\"\nurl = \"https://x/c/\"").unwrap();
+        let jmap: CalendarConfig =
+            toml::from_str("account = \"a\"\njmap_calendar = \"c1\"").unwrap();
+        let key = sync.output_key(&caldav, &caldav);
+        assert!(!key.contains("jmap"), "{key}");
+        assert_ne!(sync.output_key(&jmap, &caldav), key);
+        assert_ne!(sync.output_key(&caldav, &jmap), key);
+    }
+
+    #[test]
     fn test_eventkit_calendar_takes_no_account() {
         let config = config_with(
             "[calendars.a]\naccount = \"acc\"\neventkit_calendar = \"Home\"\n\
@@ -2758,7 +2895,7 @@ password = "secret"
         let mixed = config_with(&feed.replace("ics_url", "account = \"acc\"\nics_url"));
         let err = mixed.validate().unwrap_err().to_string();
         assert!(
-            err.contains("calendar 'a': ics_url takes no 'account', 'url' or 'eventkit_calendar'"),
+            err.contains("calendar 'a': ics_url takes no 'account', 'url', 'eventkit_calendar' or 'jmap_calendar'"),
             "{err}"
         );
     }

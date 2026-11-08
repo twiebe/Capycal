@@ -20,7 +20,7 @@ Settings starts an assistant. Once you choose Calendar.app, it says why and macO
 4. **What should the copies show?**: the card "Busy blocker" (copies titled "Busy (Work)", after the source calendar). Each card shows how a copied event will look.
 5. **Name the sync**: change the proposed name (made from the two calendars) to `work-to-blockers`, then **Create**.
 
-For a CalDAV calendar (Nextcloud, Fastmail, ...) choose the card "A CalDAV account" in the first step (or go **Back** to it), or **Add Account…** in Settings later: server URL, user name and password (the password goes into the Keychain), then its calendars appear in the lists.
+For a CalDAV calendar (Nextcloud, Fastmail, ...) or a JMAP calendar (Stalwart, ...) choose the card "A CalDAV or JMAP account" in the first step (or go **Back** to it), or **Add Account…** in Settings later: the protocol, server URL, user name and password (the password goes into the Keychain), then its calendars appear in the lists.
 
 Settings writes the config for you, keeping it readable:
 

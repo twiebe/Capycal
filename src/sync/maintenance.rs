@@ -2,13 +2,12 @@ use std::sync::Arc;
 
 use tracing::{debug, error, info, warn};
 
-use crate::caldav::client::CalDavClient;
-use crate::caldav::source::synced_events;
 use crate::config::{CalendarConfig, Config, SyncConfig};
 use crate::error::{Error, Result};
+use crate::source::EventSink;
 use crate::state::StateStore;
 use crate::state::store::FsStateStore;
-use crate::sync::factory::caldav_client;
+use crate::sync::factory::{AnySink, build_sink, caldav_client};
 
 /// Reports how many events a purge has handled (deleted or failed) so far.
 pub type Progress = Arc<dyn Fn(usize) + Send + Sync>;
@@ -66,10 +65,8 @@ pub async fn count_synced_events(config: &Config, sync_name: &str) -> Result<usi
     match config.calendars[&sync.target].eventkit_calendar.clone() {
         Some(ek_name) => eventkit_count(ek_name, sync.name.clone(), sync.source.clone()).await,
         None => {
-            let client = caldav_client(config, &sync.target)?;
-            Ok(marked_caldav_events(&client, sync_name, &sync.source)
-                .await?
-                .len())
+            let sink = build_sink(config, &sync.target)?;
+            Ok(marked_events(&sink, sync_name, &sync.source).await?.len())
         }
     }
 }
@@ -100,13 +97,13 @@ pub async fn purge_sync(
             eventkit_delete(ek_name, sync.name.clone(), sync.source.clone(), progress).await?
         }
         None => {
-            let client = caldav_client(config, &sync.target)?;
+            let sink = build_sink(config, &sync.target)?;
             info!(
                 sync = sync_name,
-                target = sink_cal.url_or_err(&sync.target)?,
+                target = sink_cal.location().unwrap_or_default(),
                 "fetching events from target for purge"
             );
-            let hrefs = marked_caldav_events(&client, sync_name, &sync.source).await?;
+            let hrefs = marked_events(&sink, sync_name, &sync.source).await?;
             if hrefs.is_empty() {
                 info!(sync = sync_name, "no events of this sync in the target");
             } else {
@@ -116,7 +113,7 @@ pub async fn purge_sync(
                     "deleting synced events from target"
                 );
             }
-            delete_concurrently(&client, hrefs, sink_cal.concurrency, progress).await
+            delete_concurrently(&sink, hrefs, sink_cal.concurrency, progress).await
         }
     };
     let took = crate::sync::runner::took(started);
@@ -133,7 +130,7 @@ pub async fn purge_sync(
 pub async fn count_calendar_events(config: &Config, calendar: &str) -> Result<usize> {
     match find_calendar(config, calendar)?.eventkit_calendar.clone() {
         Some(ek_name) => eventkit_count_all(ek_name).await,
-        None => Ok(all_caldav_events(config, calendar).await?.0.len()),
+        None => Ok(all_events(config, calendar).await?.0.len()),
     }
 }
 
@@ -155,13 +152,13 @@ pub async fn purge_calendar(
             eventkit_delete_all(ek_name, progress).await?
         }
         None => {
-            let (hrefs, client) = all_caldav_events(config, calendar).await?;
+            let (hrefs, sink) = all_events(config, calendar).await?;
             if hrefs.is_empty() {
                 info!(calendar, "no events in calendar");
             } else {
                 info!(calendar, count = hrefs.len(), "deleting ALL events");
             }
-            delete_concurrently(&client, hrefs, cal.concurrency, progress).await
+            delete_concurrently(&sink, hrefs, cal.concurrency, progress).await
         }
     };
     let took = crate::sync::runner::took(started);
@@ -186,14 +183,22 @@ fn find_calendar<'a>(config: &'a Config, calendar: &str) -> Result<&'a CalendarC
     Ok(cal)
 }
 
-/// The hrefs of every event in a CalDAV calendar, and its client.
-async fn all_caldav_events(config: &Config, calendar: &str) -> Result<(Vec<String>, CalDavClient)> {
-    let client = caldav_client(config, calendar)?;
-    let refs = client.list_events().await.map_err(|e| Error::SinkEvents {
+/// The hrefs of every event in a CalDAV or JMAP calendar, and its sink.
+async fn all_events(config: &Config, calendar: &str) -> Result<(Vec<String>, AnySink)> {
+    let listing = |e| Error::SinkEvents {
         action: "listing events",
         source: Box::new(e),
-    })?;
-    Ok((refs.into_iter().map(|r| r.href).collect(), client))
+    };
+    find_calendar(config, calendar)?;
+    let sink = build_sink(config, calendar)?;
+    let hrefs = if let AnySink::Jmap(jmap) = &sink {
+        jmap.event_ids().await.map_err(listing)?
+    } else {
+        let client = caldav_client(config, calendar)?;
+        let refs = client.list_events().await.map_err(listing)?;
+        refs.into_iter().map(|r| r.href).collect()
+    };
+    Ok((hrefs, sink))
 }
 
 #[cfg(target_os = "macos")]
@@ -229,12 +234,9 @@ fn find_sync<'a>(config: &'a Config, sync_name: &str) -> Result<&'a SyncConfig> 
 }
 
 /// Hrefs of the sink events that carry the marker of exactly `sync_name`.
-async fn marked_caldav_events(
-    client: &CalDavClient,
-    sync_name: &str,
-    source_name: &str,
-) -> Result<Vec<String>> {
-    Ok(synced_events(client, sync_name, source_name)
+async fn marked_events(sink: &AnySink, sync_name: &str, source_name: &str) -> Result<Vec<String>> {
+    Ok(sink
+        .list_synced(sync_name, source_name)
         .await?
         .into_iter()
         .map(|e| e.href)
@@ -279,7 +281,7 @@ async fn eventkit_delete(_: String, _: String, _: String, _: Progress) -> Result
 /// Delete events with at most `concurrency` requests in flight, reporting
 /// each finished one to `progress`. Returns (deleted, errors).
 pub(crate) async fn delete_concurrently(
-    client: &CalDavClient,
+    sink: &AnySink,
     hrefs: Vec<String>,
     concurrency: usize,
     progress: Progress,
@@ -290,10 +292,10 @@ pub(crate) async fn delete_concurrently(
     let mut handles = Vec::new();
     for href in hrefs {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
-        let client = client.clone();
+        let sink = sink.clone();
         let (handled, progress) = (handled.clone(), progress.clone());
         handles.push(tokio::spawn(async move {
-            let result = client.delete_event(&href).await;
+            let result = sink.delete_event(&href).await;
             drop(permit);
             progress(handled.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1);
             (href, result)
@@ -568,13 +570,16 @@ pub(crate) mod tests {
             username: "u".to_string(),
             password: "p".to_string(),
         };
-        let client = CalDavClient::new(&format!("{}/cal/", server.uri()), auth).unwrap();
+        let client =
+            crate::caldav::client::CalDavClient::new(&format!("{}/cal/", server.uri()), auth)
+                .unwrap();
+        let sink = AnySink::CalDav(crate::caldav::source::CalDavSink::new(client));
         let hrefs = ["/cal/a.ics", "/cal/b.ics", "/cal/c.ics"].map(String::from);
 
         let reported = Arc::new(std::sync::Mutex::new(Vec::new()));
         let log = reported.clone();
         let progress: Progress = Arc::new(move |done| log.lock().unwrap().push(done));
-        let (deleted, errors) = delete_concurrently(&client, hrefs.to_vec(), 2, progress).await;
+        let (deleted, errors) = delete_concurrently(&sink, hrefs.to_vec(), 2, progress).await;
         assert_eq!((deleted, errors), (2, 1));
         // The tasks run concurrently and may report out of order
         let mut reported = reported.lock().unwrap().clone();

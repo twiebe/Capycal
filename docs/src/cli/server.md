@@ -87,7 +87,7 @@ docker compose kill -s HUP capycal      # reload the config
 docker compose exec capycal capycal --status
 ```
 
-The image runs the CLI only. Calendar.app (EventKit) is not available in a container, so sync CalDAV accounts and calendar feeds there.
+The image runs the CLI only. Calendar.app (EventKit) is not available in a container, so sync CalDAV and JMAP accounts and calendar feeds there.
 
 ### From source
 

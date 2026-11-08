@@ -10,6 +10,7 @@ mod error;
 mod eventkit;
 mod ical;
 mod ics;
+mod jmap;
 mod keychain;
 mod logging;
 mod source;
@@ -21,11 +22,11 @@ mod sync;
 pub const VERSION: &str = env!("CAPYCAL_VERSION");
 
 pub use caldav::client::DiscoveredCalendar;
-pub use cli::discover::discover_caldav_calendars;
+pub use cli::discover::discover_calendars;
 pub use cli::generate::STARTER_CONFIG;
 pub use config::{
     AccountConfig, CalendarConfig, ConditionConfig, Config, Credential, DEFAULT_CONCURRENCY,
-    SyncConfig, TransformAction, TransformConfig, calendar_key, default_config_path,
+    Protocol, SyncConfig, TransformAction, TransformConfig, calendar_key, default_config_path,
 };
 pub use config_edit::{ConfigEditor, duration_text};
 pub use config_migrate::ConfigUpdate;

@@ -60,6 +60,19 @@ version = 2
 ## Events written at the same time when this calendar is a target
 # concurrency = 2
 
+## A calendar of a JMAP server (JMAP for Calendars, such as Stalwart): an
+## account with protocol = "jmap" whose url is the server, and the calendar's
+## id or name. `capycal --discover-jmap <server>` lists them.
+# [accounts.mail]
+# url = "https://mail.example.com/"
+# username = "alice@example.com"
+# password = { env = "CAPYCAL_MAIL_PASSWORD" }
+# protocol = "jmap"
+#
+# [calendars.team]
+# account = "mail"
+# jmap_calendar = "Team"
+
 ## A Calendar.app calendar (macOS only). eventkit_calendar takes one of:
 ##   "A1B2C3D4-..."   the calendar identifier, stable across renames
 ##   "iCloud/Family"  "Account/Name", as shown in Calendar.app's sidebar
@@ -183,7 +196,7 @@ mod tests {
         );
         let config: Config = toml::from_str(&text).unwrap();
         config.validate().unwrap();
-        assert_eq!(config.calendars.len(), 3);
+        assert_eq!(config.calendars.len(), 4);
         assert_eq!(config.syncs.len(), 1);
         assert_eq!(config.syncs[0].transforms.len(), 12);
     }

@@ -28,6 +28,7 @@ Details: [Daemon settings](../cli/config-file.md#daemon-settings).
 | `url` | string | required | Server address to discover the account's calendars on |
 | `username` | string | required | HTTP Basic user name |
 | `password` | credential | required | `"plain"`, `{ env = "VAR" }`, `{ file = "path" }`, `{ command = "..." }` or `{ keychain = "name" }`, see [Credentials](../concepts/calendars.md#passwords) |
+| `protocol` | string | `"caldav"` | `"caldav"` or `"jmap"`. Set when an account is added in the app. Details: [JMAP](../concepts/calendars.md#jmap) |
 
 Details: [Calendars](../concepts/calendars.md#accounts).
 
@@ -35,10 +36,11 @@ Details: [Calendars](../concepts/calendars.md#accounts).
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `account` | string | required for CalDAV | Name of the `[accounts.<name>]` whose credentials the calendar uses |
+| `account` | string | required for CalDAV and JMAP | Name of the `[accounts.<name>]` whose credentials the calendar uses |
 | `url` | string | required for CalDAV | CalDAV calendar collection URL |
 | `eventkit_calendar` | string | - | macOS only. Calendar identifier, `"Account/Name"` or name. Makes this a Calendar.app calendar |
 | `ics_url` | credential | - | Address of a read-only iCalendar feed (`https://`, `http://` or `webcal://`), as a string or any [credential](../concepts/calendars.md#passwords) form. Makes this a feed, usable only as a source; takes no `account` or `url`. Details: [Calendar feeds](../concepts/calendars.md#calendar-feeds-ical-address) |
+| `jmap_calendar` | string | - | Id or name of a calendar of a JMAP account (the calendar menus of a sync in the app). Makes this a JMAP calendar; takes no `url`. Details: [JMAP](../concepts/calendars.md#jmap) |
 | `concurrency` | integer | `2` | Maximum events written to this calendar at the same time as a target, shared by all syncs writing to it; also the parallel deletes of `--purge` / `--purge-all`. `0` counts as `1` |
 
 Details: [Calendars](../concepts/calendars.md), [Credentials](../concepts/calendars.md#passwords).

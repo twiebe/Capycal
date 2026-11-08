@@ -1,5 +1,4 @@
 pub mod convert;
-mod tzid;
 
 #[cfg(target_os = "macos")]
 mod client;

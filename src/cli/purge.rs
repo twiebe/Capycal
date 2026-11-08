@@ -46,7 +46,7 @@ pub fn confirm_purge_all(
              add --yes to confirm when not running in a terminal"
         )));
     }
-    let location = cal.eventkit_calendar.as_deref().or(cal.url.as_deref());
+    let location = cal.location();
     eprint!(
         "This deletes EVERY event in calendar '{cal_name}' ({}), including events \
          Capycal did not create.\nType the calendar name to confirm: ",

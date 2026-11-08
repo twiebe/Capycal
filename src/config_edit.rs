@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use toml_edit::{DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::config::{
-    AccountConfig, CalendarConfig, ConditionConfig, Config, Credential, SyncConfig,
+    AccountConfig, CalendarConfig, ConditionConfig, Config, Credential, Protocol, SyncConfig,
     TransformConfig, default_days_future, default_days_past,
 };
 use crate::error::{Error, Result};
@@ -92,6 +92,9 @@ impl ConfigEditor {
         table.insert("url", Item::Value(account.url.as_str().into()));
         table.insert("username", Item::Value(account.username.as_str().into()));
         table.insert("password", Item::Value(credential(&account.password)));
+        if account.protocol != Protocol::default() {
+            table.insert("protocol", Item::Value(account.protocol.as_str().into()));
+        }
     }
 
     /// Rename an account, the `account` of its calendars and a keychain
@@ -257,6 +260,9 @@ impl ConfigEditor {
         }
         if let Some(feed) = &calendar.ics_url {
             table.insert("ics_url", Item::Value(credential(feed)));
+        }
+        if let Some(id) = &calendar.jmap_calendar {
+            table.insert("jmap_calendar", Item::Value(id.as_str().into()));
         }
         if calendar.concurrency != crate::config::DEFAULT_CONCURRENCY {
             table.insert(
@@ -579,6 +585,7 @@ mod tests {
             url: url.to_string(),
             username: "alice".to_string(),
             password,
+            protocol: Protocol::default(),
         }
     }
 
@@ -588,6 +595,7 @@ mod tests {
             url: Some(url.to_string()),
             eventkit_calendar: None,
             ics_url: None,
+            jmap_calendar: None,
             concurrency: crate::config::DEFAULT_CONCURRENCY,
         }
     }
@@ -731,6 +739,7 @@ url = "https://work.example.com/home/"
                 url: None,
                 eventkit_calendar: Some("iCloud/Family".to_string()),
                 ics_url: None,
+                jmap_calendar: None,
                 concurrency: crate::config::DEFAULT_CONCURRENCY,
             },
         );
@@ -1036,6 +1045,39 @@ url = "https://work.example.com/home/"
             text.find("[[syncs.s.transforms]]").unwrap() < text.find("[syncs.t]").unwrap(),
             "{text}"
         );
+    }
+
+    #[test]
+    fn test_jmap_keys_are_written_and_read_back() {
+        let dir = std::env::temp_dir().join(format!("capycal-edit-jmap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("capycal.toml");
+        std::fs::write(&path, "[daemon]\n").unwrap();
+        let mut editor = ConfigEditor::load(&path).unwrap();
+        let mut mail = account(
+            "https://mail.example.org/",
+            Credential::Plain("p".to_string()),
+        );
+        mail.protocol = Protocol::Jmap;
+        editor.set_account("mail", &mail);
+        editor.set_account(
+            "dav",
+            &account("https://x/", Credential::Plain("p".to_string())),
+        );
+        let calendar = CalendarConfig {
+            jmap_calendar: Some("c1".to_string()),
+            url: None,
+            ..caldav("mail", "")
+        };
+        editor.set_calendar("team", &calendar);
+        let text = editor.to_string();
+        assert_eq!(text.matches("protocol = \"jmap\"").count(), 1, "{text}");
+        assert!(text.contains("jmap_calendar = \"c1\""), "{text}");
+        let config: Config = toml::from_str(&text).unwrap();
+        config.validate().unwrap();
+        assert_eq!(config.accounts["mail"], mail);
+        assert_eq!(config.calendars["team"], calendar);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

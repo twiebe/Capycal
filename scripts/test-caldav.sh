@@ -1,11 +1,13 @@
 #!/bin/sh
-# Run the CalDAV end-to-end tests (tests/caldav_e2e.rs) against a throwaway
-# server on 127.0.0.1. CAPYCAL_TEST_SERVER picks it: radicale (default,
-# installed into $CARGO_TARGET_DIR/radicale), stalwart or nextcloud (containers,
-# need Docker).
+# Run end-to-end tests against a throwaway server on 127.0.0.1.
+# CAPYCAL_TEST_SERVER picks it: radicale (default, installed into
+# $CARGO_TARGET_DIR/radicale), stalwart or nextcloud (containers, need Docker).
+# CAPYCAL_TEST_SUITE picks the tests: caldav_e2e (default) or jmap_e2e (only on
+# stalwart).
 set -eu
 
 server="${CAPYCAL_TEST_SERVER:-radicale}"
+suite="${CAPYCAL_TEST_SUITE:-caldav_e2e}"
 port="${CAPYCAL_TEST_PORT:-5299}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/capycal-test-$server.XXXXXX")"
@@ -88,6 +90,7 @@ start_stalwart() {
         }' > "$work/setup.json"
     grep -q '"created":{"u"' "$work/setup.json" || { cat "$work/setup.json" >&2; exit 1; }
     url="http://127.0.0.1:$port/dav/cal/test%40capycal.test/"
+    export CAPYCAL_TEST_JMAP_URL="http://127.0.0.1:$port"
     user="test@capycal.test"
     # At most 4 requests of an account at once by default, so one test at a time
     test_threads=1
@@ -124,4 +127,4 @@ esac
 export CAPYCAL_TEST_CALDAV_URL="$url"
 export CAPYCAL_TEST_CALDAV_USER="$user"
 export CAPYCAL_TEST_CALDAV_PASSWORD="$password"
-cargo test --test caldav_e2e -- --ignored ${test_threads:+--test-threads="$test_threads"} "$@"
+cargo test --test "$suite" -- --ignored ${test_threads:+--test-threads="$test_threads"} "$@"

@@ -3,6 +3,8 @@ use crate::caldav::client::CalDavClient;
 use crate::caldav::source::{CalDavSink, CalDavSource};
 use crate::config::{CalendarConfig, Config, SyncConfig};
 use crate::error::{Error, Result};
+use crate::jmap::client::JmapClient;
+use crate::jmap::source::{JmapSink, JmapSource};
 use crate::source::{EventSink, EventSource, PutResult, SinkChanges, SinkEvent, SourceEvent};
 use crate::state::SyncState;
 
@@ -12,6 +14,7 @@ pub enum AnySource {
     #[cfg(target_os = "macos")]
     EventKit(crate::eventkit::EventKitClient),
     Ics(crate::ics::IcsSource),
+    Jmap(JmapSource),
 }
 
 /// Any supported event sink. Add new backends here and in `build_sink`.
@@ -20,6 +23,7 @@ pub enum AnySink {
     CalDav(CalDavSink),
     #[cfg(target_os = "macos")]
     EventKit(crate::eventkit::EventKitClient),
+    Jmap(JmapSink),
 }
 
 /// What an `AnySink` keeps of a stored event, per backend.
@@ -27,6 +31,7 @@ pub enum AnyStored {
     CalDav(String),
     #[cfg(target_os = "macos")]
     EventKit(crate::eventkit::convert::StoredEvent),
+    Jmap(serde_json::Value),
 }
 
 impl EventSource for AnySource {
@@ -39,6 +44,7 @@ impl EventSource for AnySource {
             #[cfg(target_os = "macos")]
             Self::EventKit(s) => s.fetch_changes(state).await,
             Self::Ics(s) => s.fetch_changes(state).await,
+            Self::Jmap(s) => s.fetch_changes(state).await,
         }
     }
 }
@@ -51,6 +57,7 @@ impl EventSink for AnySink {
             Self::CalDav(s) => s.put_event(href, ical_data).await,
             #[cfg(target_os = "macos")]
             Self::EventKit(s) => s.put_event(href, ical_data).await,
+            Self::Jmap(s) => s.put_event(href, ical_data).await,
         }
     }
 
@@ -59,6 +66,7 @@ impl EventSink for AnySink {
             Self::CalDav(s) => s.delete_event(href).await,
             #[cfg(target_os = "macos")]
             Self::EventKit(s) => s.delete_event(href).await,
+            Self::Jmap(s) => s.delete_event(href).await,
         }
     }
 
@@ -88,6 +96,10 @@ impl EventSink for AnySink {
                 s.list_synced(sync_name, source_name).await?,
                 AnyStored::EventKit,
             ),
+            Self::Jmap(s) => wrap(
+                s.list_synced(sync_name, source_name).await?,
+                AnyStored::Jmap,
+            ),
         })
     }
 
@@ -96,7 +108,7 @@ impl EventSink for AnySink {
             (Self::CalDav(s), AnyStored::CalDav(stored)) => s.is_unchanged(stored, ical_data),
             #[cfg(target_os = "macos")]
             (Self::EventKit(s), AnyStored::EventKit(stored)) => s.is_unchanged(stored, ical_data),
-            #[cfg(target_os = "macos")]
+            (Self::Jmap(s), AnyStored::Jmap(stored)) => s.is_unchanged(stored, ical_data),
             _ => false,
         }
     }
@@ -106,6 +118,7 @@ impl EventSink for AnySink {
             Self::CalDav(s) => s.changes_since(token).await,
             #[cfg(target_os = "macos")]
             Self::EventKit(s) => s.changes_since(token).await,
+            Self::Jmap(s) => s.changes_since(token).await,
         }
     }
 
@@ -114,6 +127,7 @@ impl EventSink for AnySink {
             Self::CalDav(s) => s.cancel_safe(),
             #[cfg(target_os = "macos")]
             Self::EventKit(s) => s.cancel_safe(),
+            Self::Jmap(s) => s.cancel_safe(),
         }
     }
 }
@@ -130,6 +144,12 @@ pub fn build_source(config: &Config, sync: &SyncConfig) -> Result<AnySource> {
             &sync.source,
             &url,
         )?));
+    }
+    if cal.is_jmap() {
+        return Ok(AnySource::Jmap(JmapSource::new(jmap_client(
+            config,
+            &sync.source,
+        )?)));
     }
     if cal.is_eventkit() {
         #[cfg(target_os = "macos")]
@@ -153,6 +173,9 @@ pub fn build_sink(config: &Config, cal_name: &str) -> Result<AnySink> {
     let cal = calendar(config, cal_name)?;
     if cal.is_ics() {
         return Err(read_only_feed(cal_name));
+    }
+    if cal.is_jmap() {
+        return Ok(AnySink::Jmap(JmapSink::new(jmap_client(config, cal_name)?)));
     }
     if cal.is_eventkit() {
         // The query range options only affect fetch_changes, never put/delete
@@ -195,6 +218,19 @@ pub fn caldav_client(config: &Config, cal_name: &str) -> Result<CalDavClient> {
     let cal = calendar(config, cal_name)?;
     let auth = resolve_calendar_auth(config, cal, cal_name)?;
     CalDavClient::new(cal.url_or_err(cal_name)?, auth)
+}
+
+/// Build a JMAP client for the calendar named `cal_name`, on the server and
+/// with the credentials of its account.
+pub fn jmap_client(config: &Config, cal_name: &str) -> Result<JmapClient> {
+    let cal = calendar(config, cal_name)?;
+    let auth = resolve_calendar_auth(config, cal, cal_name)?;
+    let account = &config.accounts[cal.account.as_deref().unwrap_or_default()];
+    let id = cal
+        .jmap_calendar
+        .as_deref()
+        .ok_or_else(|| Error::Config(format!("calendar '{cal_name}': missing 'jmap_calendar'")))?;
+    JmapClient::new(&account.url, auth, id)
 }
 
 fn resolve_calendar_auth(
@@ -309,6 +345,20 @@ fields = ["DTSTART"]
                 matches!(&err, Error::Config(m) if m == "eventkit_calendar is only supported on macOS")
             );
         }
+    }
+
+    #[test]
+    fn test_build_jmap_source_and_sink() {
+        let mut cfg = config("https://example.com/");
+        cfg.accounts.get_mut("acc").unwrap().protocol = crate::config::Protocol::Jmap;
+        cfg.calendars.insert(
+            "jmap".to_string(),
+            toml::from_str("account = \"acc\"\njmap_calendar = \"Team\"").unwrap(),
+        );
+        let mut sync = cfg.syncs[0].clone();
+        sync.source = "jmap".to_string();
+        assert!(matches!(build_source(&cfg, &sync), Ok(AnySource::Jmap(_))));
+        assert!(matches!(build_sink(&cfg, "jmap"), Ok(AnySink::Jmap(_))));
     }
 
     #[tokio::test]

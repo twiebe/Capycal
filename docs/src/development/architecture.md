@@ -4,7 +4,7 @@ Capycal follows a pragmatic ports-and-adapters layout. The crate is a library (`
 
 ## Dependency rule
 
-`ical/`, `sync/runner.rs`, `sync/diff.rs`, `sync/status.rs` and `state/mapping.rs` must not depend on `config`, the adapters (`caldav`, `eventkit`), `reqwest` or `std::fs`. Config is translated into domain types (`RunnerSettings`, `Transform`) at the edge, in the coordinator. Time is passed in as a parameter instead of read from the wall clock.
+`ical/`, `sync/runner.rs`, `sync/diff.rs`, `sync/status.rs` and `state/mapping.rs` must not depend on `config`, the adapters (`caldav`, `eventkit`, `ics`, `jmap`), `reqwest` or `std::fs`. Config is translated into domain types (`RunnerSettings`, `Transform`) at the edge, in the coordinator. Time is passed in as a parameter instead of read from the wall clock.
 
 ## Source tree
 
@@ -52,7 +52,7 @@ src/
     autostart.rs       Start at Login: XDG autostart entry
   cli/
     mod.rs             CLI flags, dispatch, logging init, CliError, config loading, --validate, --only
-    discover.rs        --discover (CalDAV) and --discover-eventkit, snippet formatting shared with the app
+    discover.rs        --discover (CalDAV), --discover-jmap and --discover-eventkit, snippet formatting shared with the app
     generate.rs        --generate-config starter config
     purge.rs           --purge and --purge-all (with its confirmation)
     status.rs          --status: lock holder and per-sync state, read-only
@@ -69,16 +69,20 @@ src/
     client.rs          CalDAV HTTP client (PROPFIND, REPORT, PUT, DELETE, retry policy); discovery reads privileges and component sets
     auth.rs            ResolvedAuth (Basic auth credentials)
     source.rs          CalDavSource + CalDavSink (port implementations)
+  jmap/
+    client.rs          JMAP client: session, method calls, calendar lookup, staying on the session's origin
+    convert.rs         Pure JSCalendar <-> iCal conversion, markers, update patches, what counts as unchanged
+    source.rs          JmapSource + JmapSink (port implementations)
   eventkit/
     client.rs          macOS EventKit adapter (cfg(target_os = "macos")): reads/writes EKEvent
     convert.rs         Pure EventKit <-> iCal conversion, etag and notes marker (all platforms)
-    tzid.rs            TZIDs NSTimeZone does not know: Windows and prefixed names, VTIMEZONE offsets (all platforms)
   ics/
     mod.rs             IcsSource: read-only iCalendar feed (ics_url), one GET split into events per UID
   ical/
     mod.rs             Processing pipeline, line unfolding, shared iCal helpers
     filter.rs          Field filtering (STRUCTURAL_FIELDS always, `fields` on top), VTIMEZONE carry-over
     timezone.rs        VTIMEZONE offsets: local <-> UTC for zones the event defines (buffers, unknown TZIDs)
+    tzid.rs            TZIDs a target may not know (Calendar.app, JMAP): Windows and prefixed names, VTIMEZONE-only names to UTC
     window.rs          Window: whether an event might have an occurrence in the days around now
     transform.rs       Transform (action: set, regex, remove, buffer, alarm, skip; conditions) and application
     marker.rs          X-CAPYCAL-SOURCE/SYNC stamping and detection
@@ -136,7 +140,7 @@ pub trait StatusReporter: Send + Sync {
 }
 ```
 
-The sync's `target` calendar in the config is the sink in the code. CalDAV and EventKit implement both `EventSource` and `EventSink`, so every combination works: CalDAV to CalDAV, EventKit to CalDAV, CalDAV to EventKit, EventKit to EventKit. A feed (`ics::IcsSource`) is only an `EventSource`: validation rejects it as a target and `build_sink` refuses it. `AnySource` / `AnySink` in `sync/factory.rs` are enums that dispatch to the concrete adapter, so the runner stays generic without `dyn`.
+The sync's `target` calendar in the config is the sink in the code. CalDAV, JMAP and EventKit implement both `EventSource` and `EventSink`, so every combination works: CalDAV to CalDAV, EventKit to CalDAV, CalDAV to EventKit, EventKit to EventKit. A feed (`ics::IcsSource`) is only an `EventSource`: validation rejects it as a target and `build_sink` refuses it. `AnySource` / `AnySink` in `sync/factory.rs` are enums that dispatch to the concrete adapter, so the runner stays generic without `dyn`.
 
 ## Status and sync now
 
@@ -148,6 +152,7 @@ A running sync reports its `SyncStatus` (running flag, start time of the last cy
 
 Every event Capycal creates carries a marker naming the sync and the source event:
 
+- JMAP: the vendor properties `capycal.app:source` and `capycal.app:sync`. `jmap::convert` turns them into the iCal markers on reading, and also reads the iCal markers from `iCalendar.properties`, where a copy written over CalDAV to the same server has them.
 - CalDAV (and iCal in general): `X-CAPYCAL-SOURCE:<source calendar>/<source uid>` and `X-CAPYCAL-SYNC:<sync>` (`ical/marker.rs`). Sink hrefs are deterministic (`capycal-<uuidv5(sync, source uid)>.ics`).
 - EventKit keeps no custom properties, so the sink writes a notes line `[capycal:sync=<sync>;source=<source calendar>;uid=<source uid>]`, values percent-encoded where they contain `%`, `;`, `=`, `]` or line breaks (`eventkit/convert.rs`: `NotesMarker`, `find_marker`, `with_marker`). The legacy `[capycal:<source>]` line of older versions is still read everywhere; every put replaces all marker lines with the current one. Reading an EventKit event with either marker emits `X-CAPYCAL-SOURCE`, so a bidirectional setup skips it (loop prevention). A legacy marker names no sync, so purge and listing attribute it by source.
 
@@ -176,7 +181,7 @@ Algorithm:
 
 ## Purge
 
-`sync::maintenance::count_synced_events` and `purge_sync` find the events one sync created in its sink: on CalDAV by listing the calendar, fetching the events with a multiget and keeping those whose `X-CAPYCAL-SYNC` is exactly the sync's name; on EventKit by the notes marker naming the sync, or for a legacy marker the sync's source (`count_events_by_marker`, `delete_events_by_marker`, sharing `synced_events` with the sink listing). EventKit calls run in `spawn_blocking`, each inside an `autoreleasepool`. `purge_sync` deletes with the sink's `concurrency` (`delete_concurrently`), reports the number of handled events to a `Progress` callback (the menu bar app sends it throttled as `Update::PurgeProgress`), counts single failures and then removes the sync's state through the `StateStore`. `--purge` and the menu bar app share it; `Coordinator::purge` pauses the sync first and resumes it if the sink could not be read. `count_calendar_events` and `purge_calendar` do the same for every event of one calendar (CalDAV `list_events`, EventKit `count_all_events` / `delete_all_events`) and remove the state of every sync with that target; `--purge-all` and the menu bar app's Remove All Events share them, and `Coordinator::purge_calendar` pauses the syncs writing into the calendar meanwhile. `next_source_event` reads a sync's source with an empty state and returns the first event starting at or after now (by DTSTART), for the Settings window's preview.
+`sync::maintenance::count_synced_events` and `purge_sync` find the events one sync created in its sink: on CalDAV by listing the calendar, fetching the events with a multiget and keeping those whose `X-CAPYCAL-SYNC` is exactly the sync's name; on JMAP the same through `CalendarEvent/query` and `/get` with the marker `capycal.app:sync`; on EventKit by the notes marker naming the sync, or for a legacy marker the sync's source (`count_events_by_marker`, `delete_events_by_marker`, sharing `synced_events` with the sink listing). EventKit calls run in `spawn_blocking`, each inside an `autoreleasepool`. `purge_sync` deletes with the sink's `concurrency` (`delete_concurrently`), reports the number of handled events to a `Progress` callback (the menu bar app sends it throttled as `Update::PurgeProgress`), counts single failures and then removes the sync's state through the `StateStore`. `--purge` and the menu bar app share it; `Coordinator::purge` pauses the sync first and resumes it if the sink could not be read. `count_calendar_events` and `purge_calendar` do the same for every event of one calendar (CalDAV `list_events`, EventKit `count_all_events` / `delete_all_events`) and remove the state of every sync with that target; `--purge-all` and the menu bar app's Remove All Events share them, and `Coordinator::purge_calendar` pauses the syncs writing into the calendar meanwhile. `next_source_event` reads a sync's source with an empty state and returns the first event starting at or after now (by DTSTART), for the Settings window's preview.
 
 ## Config lock
 
@@ -265,7 +270,7 @@ Shutdown (also the stop before a reload or a purge) cancels a running cycle, inc
 
 - **Fetch**: the source runs against a copy of `SyncState` that replaces the state only on success. A cancelled (or failed) fetch is dropped with any request or backoff sleep in it and leaves the state exactly as before; nothing was written to the sink yet.
 - **Waiting for a sink permit and between deletes**: no new put or delete starts.
-- **In-flight puts**: aborted only if `EventSink::cancel_safe()` is true. CalDAV is: the sink href is derived from the sink UID (or taken from the mapping), so a put whose result was lost is repeated to the same resource. EventKit is not: a new `EKEvent` gets its identifier from EventKit on save, and a put dropped before its mapping is recorded would create a duplicate next cycle. Its puts are local and have no retry waits, so the runner simply lets them finish.
+- **In-flight puts**: aborted only if `EventSink::cancel_safe()` is true. CalDAV is: the sink href is derived from the sink UID (or taken from the mapping), so a put whose result was lost is repeated to the same resource. JMAP is: the server assigns ids, but a put to a requested `<uid>.ics` first looks for an event with that UID. EventKit is not: a new `EKEvent` gets its identifier from EventKit on save, and a put dropped before its mapping is recorded would create a duplicate next cycle. Its puts are local and have no retry waits, so the runner simply lets them finish.
 - **In-flight deletes**: always cancellable. Deletes are idempotent and the mapping is dropped only after success.
 
 After a cancellation during the push phase the runner keeps the mappings of the completed puts, adds every delete that did not complete to `pending_removals`, restores the cursor from before the fetch (`sync_token`, `ctag`) and saves the state. The next cycle therefore fetches the unprocessed changes again: a change log source reports them again from the old token, a ctag/etag source sees the old ctag differ and diffs the etags against the mappings. Events that were already put are updated in place through their mapping.
@@ -285,7 +290,7 @@ The coordinator waits up to 30 seconds (`SHUTDOWN_TIMEOUT`) for a stopped sync's
 - As a source, recurring events are synced as individual occurrences without RRULE. When a single occurrence is deleted, EventKit simply stops returning it; an RRULE in the target would bring it back.
 - As a sink, a recurring event becomes a native series: `convert::parse_series` turns the RRULE into a `Recurrence` (an `EKRecurrenceRule` in its terms), EXDATEs and cancelled overrides into occurrences to remove and the other overrides into occurrences to change. `client.rs` saves the master with the rule, then `apply_exceptions` finds each occurrence by its `occurrenceDate` and removes or changes it with `EKSpan::ThisEvent`. A put rewrites an existing series as a whole (deleted with `EKSpan::FutureEvents`, saved new), because EventKit keeps the exceptions of an existing series. Deletes and purge remove whole series. A full sync never skips a series (`StoredEvent::recurring`). Rules EventKit can't represent are logged and written as their first occurrence; RDATE is left out.
 - Occurrence identity is `{calendarItemExternalIdentifier}_{start rounded to the minute}`.
-- Timed events keep their timezone (`DTSTART;TZID=`) so local times survive DST changes. NSTimeZone only knows IANA names, so `parse_ical` and `parse_series` first run `eventkit/tzid.rs` (`resolve_timezones`): Windows names map to IANA zones, prefixed IANA names lose the prefix, other names defined by a VTIMEZONE become UTC values computed from its observances. `ical_to_nsdate` treats floating times and still unknown names as local time. `apply_update` also sets `EKEvent.timeZone` (`ical_time_zone`), without which Calendar.app keeps a timed event at the same wall-clock time in every zone; `convert::is_unchanged` treats a stored timed event without a zone (`StoredEvent::floating`) as changed, so a full sync fixes older copies. All-day events use local dates. EventKit ends an all-day event at the last second of its last day, iCal at the following midnight: `apply_update` writes the end one second before the iCal end, and `all_day_end` reads one second after the stored end, which gives the following day for both conventions.
+- Timed events keep their timezone (`DTSTART;TZID=`) so local times survive DST changes. NSTimeZone only knows IANA names, so `parse_ical` and `parse_series` first run `ical/tzid.rs` (`resolve_timezones`, shared with the JMAP converter): Windows names map to IANA zones, prefixed IANA names lose the prefix, other names defined by a VTIMEZONE become UTC values computed from its observances. `ical_to_nsdate` treats floating times and still unknown names as local time. `apply_update` also sets `EKEvent.timeZone` (`ical_time_zone`), without which Calendar.app keeps a timed event at the same wall-clock time in every zone; `convert::is_unchanged` treats a stored timed event without a zone (`StoredEvent::floating`) as changed, so a full sync fixes older copies. All-day events use local dates. EventKit ends an all-day event at the last second of its last day, iCal at the following midnight: `apply_update` writes the end one second before the iCal end, and `all_day_end` reads one second after the stored end, which gives the following day for both conventions.
 - Alarms map to `VALARM` (relative or absolute `TRIGGER`), availability "free" maps to `TRANSP:TRANSPARENT`. `STATUS` is read-only in EventKit.
 - capycal-created events are recognised by a `[capycal:sync=...;source=...;uid=...]` line in the notes (or the legacy `[capycal:<source>]`), because EventKit does not keep custom iCal properties. See [Markers](#markers-and-state-as-a-cache).
 - Everything except the ObjC calls lives in `eventkit/convert.rs` and is unit tested on Linux.

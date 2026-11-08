@@ -18,6 +18,7 @@ capycal [OPTIONS]
 | `--uninstall-service` | Stop and remove that service (Linux) |
 | `--generate-config` | Write a starter config to the config path and exit. Refuses to overwrite |
 | `--discover <URL>` | List the calendars of a CalDAV account and print config snippets |
+| `--discover-jmap <URL>` | List the calendars of a JMAP account and print config snippets |
 | `--discover-eventkit` | List Calendar.app calendars and print config snippets (macOS) |
 | `--purge <SYNC>` | Delete the events a sync created from its target and forget its state |
 | `--purge-all <CALENDAR>` | Delete **all** events from a calendar and forget the state of the syncs writing to it |
@@ -89,10 +90,13 @@ personal-to-work  personal -> work_blockers       -  -                 -        
 
 ```bash
 capycal --discover https://cloud.example.org
+capycal --discover-jmap https://mail.example.org
 capycal --discover-eventkit
 ```
 
 `--discover` asks for username and password on the terminal, finds the account's calendars (via `/.well-known/caldav` and the principal's calendar home) and prints each calendar's name and URL to stderr, and to stdout an `[accounts.<name>]` snippet for the server (named after its host, with `password = { env = "CAPYCAL_<NAME>_PASSWORD" }`) plus a `[calendars.<name>]` snippet per calendar that refers to it. Task lists and other collections without events are left out. Redirect stdout to collect them: `capycal --discover https://... >> snippets.toml`.
+
+`--discover-jmap` does the same on a JMAP server (via `/.well-known/jmap`, or the session address you give it): the `[accounts.<name>]` snippet has `protocol = "jmap"`, each `[calendars.<name>]` snippet the calendar's `jmap_calendar` id.
 
 `--discover-eventkit` lists every Calendar.app calendar with its identifier, grouped by account, and prints snippets in the same groups, named `<account>_<calendar>` and using the identifier, with the `Account/Name` form as a comment.
 
@@ -119,10 +123,11 @@ capycal --purge-all blockers
 `--purge <SYNC>` deletes the events this sync created from its target calendar, then removes the sync's state. Other events in the calendar are not touched:
 
 - **CalDAV target**: Capycal fetches every event in the calendar and deletes those carrying the marker of exactly this sync (`X-CAPYCAL-SYNC:<sync>`).
+- **JMAP target**: the same, with the marker property `capycal.app:sync` (or `X-CAPYCAL-SYNC` on a copy written over CalDAV).
 - **Calendar.app target** (macOS): Capycal deletes the events whose notes marker names this sync. Events created by older Capycal versions carry only the source calendar (`[capycal:<source>]`); for these the source decides, so if two syncs read the same source and write to the same Calendar.app calendar, such old events of both are deleted. On other platforms the command fails with "EventKit calendars are only supported on macOS".
 
 The source calendar is never touched. The sync must still be in the config, so purge before removing or renaming a sync. A daemon running the same config holds its lock, so stop it first; afterwards remove the sync from the config, or the next start creates the events again.
 
-`--purge-all <CALENDAR>` deletes **every event** in the calendar, including ones Capycal didn't create, then removes the state of all syncs that write to it. It works for CalDAV and Calendar.app calendars. Only use it on calendars dedicated to Capycal. It asks you to type the calendar name first; in a script or without a terminal, add `--yes` instead (`capycal --purge-all blockers --yes`), otherwise it refuses.
+`--purge-all <CALENDAR>` deletes **every event** in the calendar, including ones Capycal didn't create, then removes the state of all syncs that write to it. It works for CalDAV, JMAP and Calendar.app calendars. Only use it on calendars dedicated to Capycal. It asks you to type the calendar name first; in a script or without a terminal, add `--yes` instead (`capycal --purge-all blockers --yes`), otherwise it refuses.
 
 Both use the calendar's `concurrency` for parallel deletes and report the number of deleted events and errors. Both take the [config lock](config-file.md#config-lock), so they exit with code 1 while a daemon or the desktop app runs the same config. In the desktop app, use **Remove Synced Events…** and **Remove All Events…** on the sync's page in Settings instead.

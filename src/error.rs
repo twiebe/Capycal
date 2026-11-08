@@ -14,6 +14,9 @@ pub enum Error {
     #[error("CalDAV request failed: {0}")]
     CalDav(String),
 
+    #[error("JMAP request failed: {0}")]
+    Jmap(String),
+
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 

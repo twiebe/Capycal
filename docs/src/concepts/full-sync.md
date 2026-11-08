@@ -14,7 +14,7 @@ When events are gone from the source and it now has less than half as many event
 
 ## Unchanged events
 
-An event whose stored content is unchanged is not written again. On a CalDAV target the comparison ignores the `DTSTAMP`, `LAST-MODIFIED`, `CREATED` and `SEQUENCE` lines, line folding and line endings. On a Calendar.app target Capycal compares the fields it writes (title, location, URL, notes with the marker, start, end, all-day flag, alarms and availability; times as instants, alarms in any order), so unchanged events keep their modification date and are not uploaded to the account again. An event with an old-style marker is written again to update the marker.
+An event whose stored content is unchanged is not written again. On a CalDAV target the comparison ignores the `DTSTAMP`, `LAST-MODIFIED`, `CREATED` and `SEQUENCE` lines, line folding and line endings. On a JMAP target Capycal compares the properties it writes, ignoring what the server adds. On a Calendar.app target Capycal compares the fields it writes (title, location, URL, notes with the marker, start, end, all-day flag, alarms and availability; times as instants, alarms in any order), so unchanged events keep their modification date and are not uploaded to the account again. An event with an old-style marker is written again to update the marker.
 
 ## When it runs
 
@@ -24,7 +24,7 @@ A full sync runs:
 - once a day: on the first cycle of a day (local time of the computer, UTC in the container image) after the last full sync was on an earlier day. A computer that was off runs it on its first cycle. State files from versions before full syncs count from their first cycle, so an upgrade doesn't run every full sync at once;
 - after a change of the sync's source or target calendar, `fields`, transforms or event window, so existing copies get the new content and a new target gets every event. A change of `interval` alone does not trigger one. Copies in an old target stay there: run `capycal --purge <sync>` before you change the target or rename the sync;
 - on the first cycle after a disabled sync is enabled again;
-- when this sync's events in a CalDAV target were changed or removed by someone else: another computer running the same sync, a purge there, or a hand edit (see [One sync on several computers](several-computers.md));
+- when this sync's events in a CalDAV or JMAP target were changed or removed by someone else: another computer running the same sync, a purge there, or a hand edit (see [One sync on several computers](several-computers.md));
 - on request: `capycal --full-sync` (see [CLI reference](../cli/reference.md#full-sync)) or **Full Sync Now** in the desktop app (Settings, the sync's Advanced settings > Troubleshooting).
 
 Versions before 0.3.0 had `full_sync_interval` to set how often it runs; the [config update](../cli/config-file.md#updates-of-the-config-file) removes it. A full sync of a CalDAV target downloads every event of the target calendar once a day, which also notices copies changed by hand on targets that cannot report changes (Calendar.app, CalDAV servers without sync-collection). A full sync stopped by a shutdown or reload, or one that failed, keeps its progress and is not recorded; the next cycle is a full sync again, also when it was only requested.

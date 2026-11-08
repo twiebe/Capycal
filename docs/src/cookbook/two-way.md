@@ -61,6 +61,6 @@ When `personal-to-work` reads the personal calendar, it skips every event with a
 
 Consequences:
 
-- Edit or delete the original, not the blocker. A blocker is overwritten on the next change of its original. A blocker deleted or changed by hand in a CalDAV target is restored by the next cycle when the server supports sync-collection (see [One sync on several computers](../concepts/several-computers.md)), otherwise by the next full sync.
+- Edit or delete the original, not the blocker. A blocker is overwritten on the next change of its original. A blocker deleted or changed by hand in a CalDAV or JMAP target is restored by the next cycle when the server supports sync-collection (see [One sync on several computers](../concepts/several-computers.md)), otherwise by the next full sync.
 - Chains don't work: with A to B and B to C, the blockers from A in B are skipped and never reach C. Sync A to C directly.
 - The CalDAV server must keep unknown `X-` properties. Common servers (Nextcloud, Radicale, Baikal, iCloud, Fastmail) do. If a server drops them, two-way syncs loop; use separate blocker calendars there, so no sync reads a calendar another sync writes to.

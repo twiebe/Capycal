@@ -133,6 +133,7 @@ impl Settings {
             (Some(a), Some(b)) => a == b,
             (None, None) => {
                 c.account == calendar.account
+                    && c.jmap_calendar == calendar.jmap_calendar
                     && c.url.as_deref().map(|u| u.trim_end_matches('/'))
                         == calendar.url.as_deref().map(|u| u.trim_end_matches('/'))
             }
@@ -770,6 +771,7 @@ interval = "5m"
             url: Some(url.into()),
             eventkit_calendar: None,
             ics_url: None,
+            jmap_calendar: None,
             concurrency: capycal::DEFAULT_CONCURRENCY,
         }
     }

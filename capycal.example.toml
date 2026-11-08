@@ -11,7 +11,7 @@ log_level = "info"
 # log_format = "json"    # default: "pretty"
 # watch_config = false  # reload automatically when this file changes
 
-# Accounts - a CalDAV server and the credentials its calendars use.
+# Accounts - a CalDAV or JMAP server and the credentials its calendars use.
 
 [accounts.work]
 url = "https://caldav.work.example.com/"
@@ -24,6 +24,14 @@ password = { env = "CAPYCAL_WORK_PASSWORD" }
 url = "https://nextcloud.example.com/remote.php/dav/"
 username = "alice"
 password = { file = "/run/secrets/nextcloud_pw" }
+
+# A JMAP server (JMAP for Calendars, such as Stalwart). `url` is the server, or
+# the address of its JMAP session; --discover-jmap lists the calendars.
+# [accounts.mail]
+# url = "https://mail.example.com/"
+# username = "alice@example.com"
+# password = { env = "CAPYCAL_MAIL_PASSWORD" }
+# protocol = "jmap"  # "caldav" (default) or "jmap"
 
 # Calendars - unified, role-agnostic definitions.
 # A calendar can be source, target, or both (for bidirectional sync).
@@ -45,6 +53,12 @@ url = "https://caldav.work.example.com/calendars/personal-blockers/"
 [calendars.personal_blockers]
 account = "nextcloud"
 url = "https://nextcloud.example.com/remote.php/dav/calendars/alice/work-blockers/"
+
+# A calendar of a JMAP account, by its id (stays the same on a rename) or a name
+# unique in the account. Works as source and target.
+# [calendars.team]
+# account = "mail"
+# jmap_calendar = "Team"
 
 # A read-only calendar feed, only usable as a source: an https:// or webcal://
 # address that returns an .ics file, such as Google Calendar's "Secret address in

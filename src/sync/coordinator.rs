@@ -73,10 +73,14 @@ fn build_runner(
         .calendars
         .get(&sync_config.target)
         .ok_or_else(|| Error::Config(format!("unknown calendar '{}'", sync_config.target)))?;
-    let source_url = match &source_cal.url {
-        Some(url) => url,
-        None if source_cal.is_ics() => ICS_SOURCE_URL,
-        None => EVENTKIT_SOURCE_URL,
+    let jmap_url = source_cal
+        .jmap_calendar
+        .as_ref()
+        .map(|id| format!("jmap://{id}"));
+    let source_url = match (&source_cal.url, &jmap_url) {
+        (Some(url), _) | (None, Some(url)) => url,
+        (None, None) if source_cal.is_ics() => ICS_SOURCE_URL,
+        (None, None) => EVENTKIT_SOURCE_URL,
     };
     let output_key = sync_config.output_key(source_cal, target_cal);
     let window = sync_config.window(source_cal);

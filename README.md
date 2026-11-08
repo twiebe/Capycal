@@ -27,7 +27,8 @@ On macOS, Capycal can read from Calendar.app directly. Calendar.app already aggr
 - **Any combination of backends**: CalDAV to CalDAV, Calendar.app to CalDAV, CalDAV to Calendar.app, Calendar.app to Calendar.app, plus read-only iCal feeds as a source (Google's secret address, Outlook.com, any `.ics` URL)
 - **Bidirectional setups**: markers on synced events prevent sync loops
 - **Efficient**: RFC 6578 sync-tokens with ctag/etag fallback, per-calendar request limits, exponential backoff on 429/5xx with `Retry-After`
-- **Discovery**: `--discover` finds calendars on a CalDAV server (RFC 6764), `--discover-eventkit` lists Calendar.app calendars, both print ready-to-paste config
+- **JMAP**: servers with JMAP for Calendars (Stalwart) work as source and target like CalDAV ones
+- **Discovery**: `--discover` finds calendars on a CalDAV server (RFC 6764), `--discover-jmap` on a JMAP server, `--discover-eventkit` lists Calendar.app calendars, both print ready-to-paste config
 - **Operations**: daemon or one-shot (`--once`), config reload on `SIGHUP` or automatically when the file changes, `--full-sync` to compare source and target and repair the difference, `--purge` to remove everything Capycal created, `--status` to see each sync's state
 - **Safe state**: crash-safe JSON state files (write, then rename) that are only a cache: lost or corrupt state is rebuilt from the markers in the target, and periodic full syncs clean up duplicates and events that filters now drop
 - **Linux service**: `.deb`, `.rpm` and Arch Linux packages with man page, shell completions and systemd units; `--install-service` sets up the user service, passwords can come from a password manager or keyring command

@@ -1,4 +1,4 @@
-.PHONY: help build build-ui build-gtk run run-ui run-app run-gtk test test-ui test-gtk test-caldav test-caldav-docker test-eventkit test-keychain \
+.PHONY: help build build-ui build-gtk run run-ui run-app run-gtk test test-ui test-gtk test-caldav test-caldav-docker test-jmap test-eventkit test-keychain \
        fmt lint clippy clippy-ui clippy-gtk notices check-notices clean \
        release release-ui release-tag dist dist-macos app dmg dist-linux-x86_64 dist-linux-arm64 dist-linux \
        dist-linux-app-x86_64 dist-linux-app-arm64 dist-linux-app dist-flatpak \
@@ -68,6 +68,9 @@ test-gtk: ## Tests of the Linux desktop app
 
 test-caldav: ## End-to-end tests against a throwaway server: SERVER=radicale (default, needs python3, curl), stalwart or nextcloud (need Docker)
 	CAPYCAL_TEST_SERVER=$(SERVER) scripts/test-caldav.sh
+
+test-jmap: ## JMAP end-to-end tests against a throwaway Stalwart (needs Docker)
+	CAPYCAL_TEST_SERVER=stalwart CAPYCAL_TEST_SUITE=jmap_e2e scripts/test-caldav.sh
 
 # The source is mounted read-only; build output and downloads live in Docker
 # volumes

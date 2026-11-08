@@ -6,9 +6,9 @@
 
 use chrono::{DateTime, Utc};
 
-use super::tzid::resolve_timezones;
 use crate::ical::marker::{MARKER_SOURCE, MARKER_SYNC, extract_source_info};
 use crate::ical::transform::{parse_ical_duration, secs_to_ical_trigger};
+use crate::ical::tzid::resolve_timezones;
 use crate::ical::{
     PRODID, escape_text, extract_tzid, format_utc, is_date_value, unescape_text, unfold,
     valarm_lines,

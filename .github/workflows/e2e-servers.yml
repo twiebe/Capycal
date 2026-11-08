@@ -1,7 +1,7 @@
 name: E2E servers
 
 # The CalDAV end-to-end tests against Stalwart and Nextcloud, next to the
-# Radicale run of every CI job. Only where a change can matter to a server, and
+# Radicale run of every CI job, and the JMAP ones against Stalwart. Only where a change can matter to a server, and
 # called by the release workflow.
 on:
   push:
@@ -10,8 +10,10 @@ on:
       - "src/caldav/**"
       - "src/ical/**"
       - "src/ics/**"
+      - "src/jmap/**"
       - "src/sync/**"
       - "tests/caldav_e2e.rs"
+      - "tests/jmap_e2e.rs"
       - "scripts/test-caldav.sh"
       - ".github/workflows/e2e-servers.yml"
   pull_request:
@@ -19,8 +21,10 @@ on:
       - "src/caldav/**"
       - "src/ical/**"
       - "src/ics/**"
+      - "src/jmap/**"
       - "src/sync/**"
       - "tests/caldav_e2e.rs"
+      - "tests/jmap_e2e.rs"
       - "scripts/test-caldav.sh"
       - ".github/workflows/e2e-servers.yml"
   workflow_call:
@@ -31,11 +35,17 @@ env:
 
 jobs:
   e2e:
-    name: ${{ matrix.server }}
+    name: ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
-        server: [stalwart, nextcloud]
+        include:
+          - name: stalwart
+            target: test-caldav SERVER=stalwart
+          - name: nextcloud
+            target: test-caldav SERVER=nextcloud
+          - name: stalwart-jmap
+            target: test-jmap
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -43,4 +53,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: End-to-end tests
-        run: make test-caldav SERVER=${{ matrix.server }}
+        run: make ${{ matrix.target }}

@@ -1,4 +1,4 @@
-//! TZIDs Calendar.app may not know. NSTimeZone only knows IANA names, but
+//! TZIDs a target may not know. Calendar.app and JMAP only know IANA names, but
 //! sources also send Windows names ("W. Europe Standard Time" from Outlook
 //! and Exchange) and prefixed IANA names ("/freeassociation.sourceforge.net/
 //! Europe/Berlin" from libical). `resolve_timezones` rewrites them before

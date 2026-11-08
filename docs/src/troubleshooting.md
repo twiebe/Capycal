@@ -21,7 +21,7 @@ To remove everything a sync created, run `capycal --purge <sync>` (on the machin
 
 ### A deleted copy comes back
 
-A sync owns its copies: one deleted or changed by hand in a CalDAV target is restored by the next cycle, and by the next full sync on any target (see [One sync on several computers](concepts/several-computers.md)). To keep an event out of the target, leave it out with a [`skip`](concepts/transforms.md#skip) transform, switch the sync off, or remove its copies with **Remove Synced Events…** or `capycal --purge <sync>`.
+A sync owns its copies: one deleted or changed by hand in a CalDAV or JMAP target is restored by the next cycle, and by the next full sync on any target (see [One sync on several computers](concepts/several-computers.md)). To keep an event out of the target, leave it out with a [`skip`](concepts/transforms.md#skip) transform, switch the sync off, or remove its copies with **Remove Synced Events…** or `capycal --purge <sync>`.
 
 ### Lost or corrupt state
 

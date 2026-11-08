@@ -1,7 +1,7 @@
 //! The account form of the Settings window: server, user name and a
 //! password kept in the keychain.
 
-use capycal::{AccountConfig, Credential};
+use capycal::{AccountConfig, Credential, Protocol};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Password {
@@ -45,6 +45,7 @@ pub struct AccountForm {
     url: String,
     username: String,
     password: Password,
+    protocol: Protocol,
 }
 
 impl AccountForm {
@@ -55,6 +56,7 @@ impl AccountForm {
             url: String::new(),
             username: String::new(),
             password: Password::Keep,
+            protocol: Protocol::default(),
         }
     }
 
@@ -65,6 +67,7 @@ impl AccountForm {
             url: account.url.clone(),
             username: account.username.clone(),
             password: Password::Keep,
+            protocol: account.protocol,
         }
     }
 
@@ -82,6 +85,18 @@ impl AccountForm {
 
     pub fn username(&self) -> &str {
         &self.username
+    }
+
+    pub fn protocol(&self) -> Protocol {
+        self.protocol
+    }
+
+    /// The calendars of an account depend on its protocol, so only a new
+    /// account can choose one.
+    pub fn set_protocol(&mut self, protocol: Protocol) {
+        if self.original.is_none() {
+            self.protocol = protocol;
+        }
     }
 
     pub fn set_name(&mut self, text: &str) {
@@ -130,6 +145,7 @@ impl AccountForm {
                 !self.name.is_empty()
                     || !self.url.is_empty()
                     || !self.username.is_empty()
+                    || self.protocol != Protocol::default()
                     || self.password != Password::Keep
             }
             Some((name, account)) => {
@@ -202,18 +218,24 @@ impl AccountForm {
             url: self.url.clone(),
             username: self.username.clone(),
             password,
+            protocol: self.protocol,
         };
         Ok((name.clone(), account, ops, renamed))
     }
 
-    /// URL, user name and the typed password (None: use the stored one),
-    /// for "Test".
-    pub fn test_credentials(&self) -> (String, String, Option<String>) {
+    /// Protocol, URL, user name and the typed password (None: use the stored
+    /// one), for "Test".
+    pub fn test_credentials(&self) -> (Protocol, String, String, Option<String>) {
         let password = match &self.password {
             Password::New(p) => Some(p.clone()),
             Password::Keep => None,
         };
-        (self.url.clone(), self.username.clone(), password)
+        (
+            self.protocol,
+            self.url.clone(),
+            self.username.clone(),
+            password,
+        )
     }
 }
 
@@ -229,7 +251,27 @@ mod tests {
             password: Credential::Keychain {
                 keychain: "work".into(),
             },
+            protocol: Protocol::default(),
         }
+    }
+
+    #[test]
+    fn test_only_a_new_account_chooses_its_protocol() {
+        let mut form = AccountForm::new_account();
+        assert!(!form.is_dirty());
+        form.set_protocol(Protocol::Jmap);
+        assert!(form.is_dirty());
+        form.set_name("mail");
+        form.set_url("https://mail.example.org/");
+        form.set_username("alice");
+        form.set_password("s3cret");
+        assert_eq!(form.build(&[]).unwrap().1.protocol, Protocol::Jmap);
+        assert_eq!(form.test_credentials().0, Protocol::Jmap);
+
+        let mut existing = AccountForm::edit("work", &keychain_account());
+        existing.set_protocol(Protocol::Jmap);
+        assert_eq!(existing.protocol(), Protocol::Caldav);
+        assert!(!existing.is_dirty());
     }
 
     #[test]

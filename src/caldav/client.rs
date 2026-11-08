@@ -18,7 +18,7 @@ pub struct CalDavClient {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct RetryPolicy {
+pub(crate) struct RetryPolicy {
     max_retries: u32,
     base_delay: Duration,
 }
@@ -71,6 +71,8 @@ pub struct DiscoveredCalendar {
     /// The current user may write events (from DAV:current-user-privilege-set;
     /// true when the server does not say).
     pub writable: bool,
+    /// The calendar's id on a JMAP server, None for a CalDAV calendar.
+    pub jmap_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -133,7 +135,7 @@ impl CalDavClient {
     }
 
     /// Reusable retry logic with a given auth method.
-    async fn send_with_retry_with_auth(
+    pub(crate) async fn send_with_retry_with_auth(
         auth: &ResolvedAuth,
         retry: RetryPolicy,
         build_request: impl Fn() -> RequestBuilder,
@@ -720,6 +722,7 @@ impl CalDavClient {
                 color,
                 writable,
                 url: Self::resolve_url(home_url, &href),
+                jmap_id: None,
             });
         }
 

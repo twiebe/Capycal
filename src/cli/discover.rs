@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::caldav::client::{CalDavClient, DiscoveredCalendar};
-use crate::config::calendar_key;
+use crate::config::{Protocol, calendar_key};
 use crate::eventkit::CalendarInfo;
 
 use super::{CliError, CliResult};
@@ -43,8 +43,8 @@ fn toml_string(value: &str) -> String {
     toml::Value::String(value.to_string()).to_string()
 }
 
-/// Prompt for credentials and print the calendars found on a CalDAV server.
-pub async fn caldav(url: &str) -> CliResult {
+/// Prompt for credentials and print the calendars found on a server.
+pub async fn account(url: &str, protocol: Protocol) -> CliResult {
     eprint!("username: ");
     let mut username = String::new();
     std::io::stdin()
@@ -54,15 +54,23 @@ pub async fn caldav(url: &str) -> CliResult {
 
     let password = rpassword::prompt_password("password: ").map_err(CliError::msg)?;
 
-    print!("{}", discover_snippets(url, username, &password).await?);
+    print!(
+        "{}",
+        discover_snippets(url, username, &password, protocol).await?
+    );
     Ok(())
 }
 
-/// Discover the calendars on a CalDAV server, list them on stderr and return TOML snippets.
-async fn discover_snippets(url: &str, username: &str, password: &str) -> Result<String, CliError> {
+/// Discover the calendars on a server, list them on stderr and return TOML snippets.
+async fn discover_snippets(
+    url: &str,
+    username: &str,
+    password: &str,
+    protocol: Protocol,
+) -> Result<String, CliError> {
     eprintln!("discovering calendars on {url} ...");
 
-    let calendars = CalDavClient::discover_calendars(url, username, password).await?;
+    let calendars = discover_calendars(protocol, url, username, password).await?;
     if calendars.is_empty() {
         return Err(CliError::Stderr("no calendars found".to_string()));
     }
@@ -71,14 +79,17 @@ async fn discover_snippets(url: &str, username: &str, password: &str) -> Result<
         let name = cal.display_name.as_deref().unwrap_or("(unnamed)");
         let color = cal.color.as_deref().unwrap_or("");
         eprintln!("  {name}");
-        eprintln!("    url = \"{}\"", cal.url);
+        match &cal.jmap_id {
+            Some(id) => eprintln!("    jmap_calendar = \"{id}\""),
+            None => eprintln!("    url = \"{}\"", cal.url),
+        }
         if !color.is_empty() {
             eprintln!("    color = {color}");
         }
         eprintln!();
     }
     eprintln!("--- TOML snippets ---\n");
-    Ok(caldav_snippets(url, &calendars, username))
+    Ok(account_snippets(url, &calendars, username, protocol))
 }
 
 /// An account name from the server's host: `cloud.example.org` becomes
@@ -95,10 +106,19 @@ fn account_name(url: &str) -> String {
 
 /// An `[accounts.<name>]` snippet for the server and a `[calendars.<name>]`
 /// snippet per calendar, named after its display name.
-fn caldav_snippets(url: &str, calendars: &[DiscoveredCalendar], username: &str) -> String {
+fn account_snippets(
+    url: &str,
+    calendars: &[DiscoveredCalendar],
+    username: &str,
+    protocol: Protocol,
+) -> String {
     let account = account_name(url);
+    let protocol_line = match protocol {
+        Protocol::Caldav => String::new(),
+        protocol => format!("protocol = \"{}\"\n", protocol.as_str()),
+    };
     let mut snippets = format!(
-        "[accounts.{}]\nurl = {}\nusername = {}\npassword = {{ env = \"CAPYCAL_{}_PASSWORD\" }}\n\n",
+        "[accounts.{}]\nurl = {}\nusername = {}\npassword = {{ env = \"CAPYCAL_{}_PASSWORD\" }}\n{protocol_line}\n",
         quote_key(&account),
         toml_string(url),
         toml_string(username),
@@ -106,24 +126,33 @@ fn caldav_snippets(url: &str, calendars: &[DiscoveredCalendar], username: &str) 
     );
     for cal in calendars {
         let display_name = cal.display_name.as_deref().unwrap_or("calendar");
+        let place = match &cal.jmap_id {
+            Some(id) => format!("jmap_calendar = {}", toml_string(id)),
+            None => format!("url = {}", toml_string(&cal.url)),
+        };
         snippets.push_str(&format!(
-            "[calendars.{}]\naccount = {}\nurl = {}\n\n",
+            "[calendars.{}]\naccount = {}\n{place}\n\n",
             toml_key(display_name),
             toml_string(&account),
-            toml_string(&cal.url)
         ));
     }
     snippets
 }
 
-/// The calendars of a CalDAV account that hold events, for the desktop
-/// apps' calendar picker.
-pub async fn discover_caldav_calendars(
+/// The calendars of an account that hold events, also for the desktop apps'
+/// calendar picker.
+pub async fn discover_calendars(
+    protocol: Protocol,
     url: &str,
     username: &str,
     password: &str,
 ) -> crate::Result<Vec<DiscoveredCalendar>> {
-    CalDavClient::discover_calendars(url, username, password).await
+    match protocol {
+        Protocol::Caldav => CalDavClient::discover_calendars(url, username, password).await,
+        Protocol::Jmap => {
+            crate::jmap::client::JmapClient::discover_calendars(url, username, password).await
+        }
+    }
 }
 
 /// Print the calendars known to macOS Calendar.app.
@@ -357,7 +386,9 @@ mod tests {
         let server = server_with_calendars(&cals).await;
         let base = format!("{}/principals/alice", server.uri());
 
-        let snippets = discover_snippets(&base, "alice", "secret").await.unwrap();
+        let snippets = discover_snippets(&base, "alice", "secret", Protocol::Caldav)
+            .await
+            .unwrap();
         let uri = server.uri();
         assert_eq!(
             snippets,
@@ -371,6 +402,32 @@ mod tests {
         let config: crate::config::Config = toml::from_str(&snippets).unwrap();
         config.validate().unwrap();
         assert_eq!(config.calendars.len(), 2);
+    }
+
+    #[test]
+    fn test_jmap_snippets_name_the_protocol_and_the_calendar() {
+        let found = DiscoveredCalendar {
+            href: "c1".to_string(),
+            url: "https://mail.example.org/".to_string(),
+            display_name: Some("Team Work".to_string()),
+            color: None,
+            writable: true,
+            jmap_id: Some("c1".to_string()),
+        };
+        let snippets = account_snippets(
+            "https://mail.example.org/",
+            &[found],
+            "alice",
+            Protocol::Jmap,
+        );
+        assert_eq!(
+            snippets,
+            "[accounts.mail_example_org]\nurl = \"https://mail.example.org/\"\nusername = \"alice\"\n\
+             password = { env = \"CAPYCAL_MAIL_EXAMPLE_ORG_PASSWORD\" }\nprotocol = \"jmap\"\n\n\
+             [calendars.team_work]\naccount = \"mail_example_org\"\njmap_calendar = \"c1\"\n\n"
+        );
+        let config: crate::config::Config = toml::from_str(&snippets).unwrap();
+        config.validate().unwrap();
     }
 
     #[test]
@@ -388,7 +445,10 @@ mod tests {
         let server = server_with_calendars("").await;
         let base = format!("{}/principals/alice", server.uri());
 
-        let CliError::Stderr(msg) = discover_snippets(&base, "u", "p").await.unwrap_err() else {
+        let CliError::Stderr(msg) = discover_snippets(&base, "u", "p", Protocol::Caldav)
+            .await
+            .unwrap_err()
+        else {
             panic!("expected stderr error");
         };
         assert_eq!(msg, "no calendars found");
@@ -398,7 +458,7 @@ mod tests {
     async fn test_discover_snippets_reports_discovery_error() {
         let server = MockServer::start().await;
 
-        let CliError::Stderr(msg) = discover_snippets(&server.uri(), "u", "p")
+        let CliError::Stderr(msg) = discover_snippets(&server.uri(), "u", "p", Protocol::Caldav)
             .await
             .unwrap_err()
         else {

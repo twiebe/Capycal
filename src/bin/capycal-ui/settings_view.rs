@@ -2,7 +2,7 @@
 //! what the user's input does (`input`, `update`). The macOS glue and the
 //! GTK app only draw a `SettingsView` and report `SettingsInput`s.
 
-use capycal::{CalendarConfig, Config, ConfigEditor, Credential};
+use capycal::{CalendarConfig, Config, ConfigEditor, Credential, Protocol};
 
 use crate::account_form::AccountForm;
 use crate::backend::{Command, Problem, Update};
@@ -23,6 +23,8 @@ use crate::transform_form::{
 /// Stable ids of the controls; the renderer maps them to its widgets.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FieldId {
+    /// CalDAV or JMAP, of a new account.
+    Protocol,
     SidebarSync(String),
     /// The sidebar's "Duplicate" of a sync.
     DuplicateSync(String),
@@ -691,6 +693,7 @@ fn feed_calendar(url: &str) -> CalendarConfig {
         url: None,
         eventkit_calendar: None,
         ics_url: Some(Credential::Plain(url.to_string())),
+        jmap_calendar: None,
         concurrency: capycal::DEFAULT_CONCURRENCY,
     }
 }
@@ -907,6 +910,14 @@ fn discard() -> Confirm {
         message: "Your changes to this entry are not saved.".to_string(),
         button: "Discard",
         destructive: true,
+    }
+}
+
+fn protocol_at(index: usize) -> Protocol {
+    if index == 1 {
+        Protocol::Jmap
+    } else {
+        Protocol::Caldav
     }
 }
 
@@ -1593,11 +1604,11 @@ impl SettingsScreen {
             open: self.advanced,
         });
         if self.advanced {
-            // Only a CalDAV target limits its writes
+            // Only a server limits its writes
             if self.settings.calendar(form.target()).is_some()
                 && !self.settings.is_eventkit_calendar(form.target())
             {
-                controls.push(Control::Group("CalDAV target".to_string()));
+                controls.push(Control::Group("Target server".to_string()));
                 controls.push(Control::Note(format!(
                     "How many events Capycal writes to {} at the same time. Every sync \
                      writing into it shares this. Use 1 if the server answers parallel \
@@ -2160,6 +2171,17 @@ impl SettingsScreen {
         controls.push(Control::GroupEnd);
     }
 
+    /// CalDAV or JMAP, for a new account.
+    fn protocol_choice(form: &AccountForm) -> Control {
+        Control::Segments {
+            id: FieldId::Protocol,
+            label: "Protocol".to_string(),
+            items: vec!["CalDAV".to_string(), "JMAP".to_string()],
+            selected: Some(usize::from(form.protocol() == Protocol::Jmap)),
+            centered: false,
+        }
+    }
+
     fn account_controls(&self, controls: &mut Vec<Control>) {
         let Some(form) = self.settings.account_form_ref() else {
             return;
@@ -2172,11 +2194,17 @@ impl SettingsScreen {
                 form.name().to_string()
             },
             name: None,
-            subtitle: "CalDAV account".to_string(),
+            subtitle: match form.protocol() {
+                Protocol::Caldav => "CalDAV account".to_string(),
+                Protocol::Jmap => "JMAP account".to_string(),
+            },
             switch: None,
             status: None,
         });
         controls.push(Control::Group("Connection".to_string()));
+        if form.original_name().is_none() {
+            controls.push(Self::protocol_choice(form));
+        }
         controls.push(Self::text(
             FieldId::AccountName,
             "Name",
@@ -2501,6 +2529,7 @@ impl SettingsScreen {
                 SettingsInput::Text(FieldId::Url, t) => form.set_url(&t),
                 SettingsInput::Text(FieldId::Username, t) => form.set_username(&t),
                 SettingsInput::Text(FieldId::Password, t) => form.set_password(&t),
+                SettingsInput::Selected(FieldId::Protocol, i) => form.set_protocol(protocol_at(i)),
                 _ => {}
             }
             return;
@@ -2849,12 +2878,13 @@ impl SettingsScreen {
         let Some(form) = self.settings.account_form_ref() else {
             return Vec::new();
         };
-        let (url, username, password) = form.test_credentials();
+        let (protocol, url, username, password) = form.test_credentials();
         let account = form.original_name().map(str::to_string);
         self.note = Some("Testing…".to_string());
         vec![
             Reply::Send(Command::TestAccount {
                 account,
+                protocol,
                 url,
                 username,
                 password,
@@ -3270,7 +3300,7 @@ impl SettingsScreen {
                 controls.push(hero(
                     Some(HeroImage::App),
                     "Welcome to Capycal",
-                    &format!("{WELCOME}\n\nFirst, add the CalDAV account of your calendars."),
+                    &format!("{WELCOME}\n\nFirst, add the account of your calendars."),
                 ));
                 true
             }
@@ -3289,7 +3319,7 @@ impl SettingsScreen {
                             ..Choice::default()
                         },
                         Choice {
-                            title: "A CalDAV account".to_string(),
+                            title: "A CalDAV or JMAP account".to_string(),
                             detail: "Nextcloud, Stalwart, mailbox.org, Fastmail, …".to_string(),
                             icon: Some(ChoiceIcon::CalDav),
                             enabled: true,
@@ -3319,9 +3349,10 @@ impl SettingsScreen {
                     } else {
                         "Add your account"
                     },
-                    "The CalDAV server and how to sign in.",
+                    "The server and how to sign in.",
                 ));
                 let form = &wizard.account;
+                controls.push(Self::protocol_choice(form));
                 controls.push(Self::text(
                     FieldId::AccountName,
                     "Name",
@@ -3411,7 +3442,7 @@ impl SettingsScreen {
                     ));
                 }
                 let add = if self.settings.account_names().is_empty() {
-                    "Add CalDAV Account…"
+                    "Add CalDAV or JMAP Account…"
                 } else {
                     "Add Another Account…"
                 };
@@ -3582,6 +3613,10 @@ impl SettingsScreen {
                 }
                 show()
             }
+            SettingsInput::Selected(FieldId::Protocol, i) if step == Step::Account => {
+                self.wizard.as_mut()?.account.set_protocol(protocol_at(*i));
+                show()
+            }
             SettingsInput::Text(id, text) if step == Step::Account => {
                 let form = &mut self.wizard.as_mut()?.account;
                 match id {
@@ -3612,11 +3647,13 @@ impl SettingsScreen {
                 show()
             }
             SettingsInput::Pressed(FieldId::Test) if step == Step::Account => {
-                let (url, username, password) = self.wizard.as_ref()?.account.test_credentials();
+                let (protocol, url, username, password) =
+                    self.wizard.as_ref()?.account.test_credentials();
                 self.note = Some("Testing…".to_string());
                 Some(vec![
                     Reply::Send(Command::TestAccount {
                         account: None,
+                        protocol,
                         url,
                         username,
                         password,
@@ -4025,6 +4062,7 @@ interval = "5m"
             display_name: Some(href.trim_matches('/').to_string()),
             color: None,
             writable,
+            jmap_id: None,
         }
     }
 
@@ -5294,6 +5332,54 @@ interval = "5m"
             s.input(SettingsInput::CloseRequested)[..],
             [Reply::Ask { .. }, ..]
         ));
+    }
+
+    #[test]
+    fn test_a_new_account_chooses_its_protocol() {
+        let (mut s, _, _) = screen("protocol", CONFIG, false);
+        s.input(SettingsInput::Pressed(FieldId::AddAccount));
+        let view = s.current_view();
+        assert!(matches!(
+            find(&view, &FieldId::Protocol),
+            Control::Segments { selected: Some(0), items, .. } if items == &["CalDAV", "JMAP"]
+        ));
+        s.input(SettingsInput::Selected(FieldId::Protocol, 1));
+        s.input(SettingsInput::Text(FieldId::Url, "https://mail.x/".into()));
+        let view = s.current_view();
+        assert!(matches!(
+            find(&view, &FieldId::Protocol),
+            Control::Segments {
+                selected: Some(1),
+                ..
+            }
+        ));
+        assert!(
+            view.controls.iter().any(
+                |c| matches!(c, Control::Header { subtitle, .. } if subtitle == "JMAP account")
+            )
+        );
+        let replies = s.input(SettingsInput::Pressed(FieldId::Test));
+        assert!(replies.iter().any(|r| matches!(
+            r,
+            Reply::Send(Command::TestAccount {
+                protocol: Protocol::Jmap,
+                ..
+            })
+        )));
+
+        // A saved account keeps its protocol: its calendars depend on it
+        let (mut s, _, _) = screen("protocol-saved", CONFIG, false);
+        s.input(SettingsInput::Pressed(FieldId::SidebarAccount(
+            "work".into(),
+        )));
+        let view = s.current_view();
+        assert!(!view.controls.iter().any(|c| matches!(
+            c,
+            Control::Segments {
+                id: FieldId::Protocol,
+                ..
+            }
+        )));
     }
 
     #[test]

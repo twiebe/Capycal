@@ -45,6 +45,7 @@ pub enum Command {
     /// the stored one of `account`. Answered with `Update::AccountTested`.
     TestAccount {
         account: Option<String>,
+        protocol: capycal::Protocol,
         url: String,
         username: String,
         password: Option<String>,
@@ -84,12 +85,14 @@ impl std::fmt::Debug for Command {
             }
             Command::TestAccount {
                 account,
+                protocol,
                 url,
                 username,
                 password,
             } => f
                 .debug_struct("TestAccount")
                 .field("account", account)
+                .field("protocol", protocol)
                 .field("url", url)
                 .field("username", username)
                 .field("password", &password.as_ref().map(|_| "***"))
@@ -357,10 +360,11 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
             Command::DiscoverAccount(account) => self.discover_account(account),
             Command::TestAccount {
                 account,
+                protocol,
                 url,
                 username,
                 password,
-            } => self.test_account(account, url, username, password),
+            } => self.test_account(account, protocol, url, username, password),
             Command::ListCalendarApp => self.list_calendar_app(),
             Command::NextSourceEvent { calendar, sync } => self.next_source_event(calendar, sync),
             Command::SaveSettings(change) => self.save_settings(change).await,
@@ -499,6 +503,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
             .ok_or_else(|| format!("Unknown account {name}"))?;
         Ok(PasswordSource {
             account: name.to_string(),
+            protocol: account.protocol,
             url: account.url.clone(),
             username: account.username.clone(),
             credential: account.password.clone(),
@@ -513,11 +518,12 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
         tokio::spawn(async move {
             let result = match source {
                 Ok(source) => {
+                    let protocol = source.protocol;
                     let (url, username) = (source.url.clone(), source.username.clone());
                     match resolve_blocking(source).await {
                         Ok(password) => {
                             info!(account, "discovering calendars");
-                            capycal::discover_caldav_calendars(&url, &username, &password)
+                            capycal::discover_calendars(protocol, &url, &username, &password)
                                 .await
                                 .map_err(|e| e.to_string())
                         }
@@ -536,6 +542,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
     fn test_account(
         &self,
         account: Option<String>,
+        protocol: capycal::Protocol,
         url: String,
         username: String,
         password: Option<String>,
@@ -554,7 +561,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
                 (None, None) => Err("Enter the password".to_string()),
             };
             let result = match password {
-                Ok(password) => capycal::discover_caldav_calendars(&url, &username, &password)
+                Ok(password) => capycal::discover_calendars(protocol, &url, &username, &password)
                     .await
                     .map(|found| found.len())
                     .map_err(|e| e.to_string()),
@@ -949,6 +956,7 @@ fn keychain_accounts(config: &Config) -> Vec<(String, String)> {
 /// What reading an account's password needs, off the backend's thread.
 struct PasswordSource {
     account: String,
+    protocol: capycal::Protocol,
     url: String,
     username: String,
     credential: Credential,
@@ -1823,6 +1831,7 @@ fields = ["DTSTART"]
             url: Some(format!("{}/c/", server.uri())),
             eventkit_calendar: None,
             ics_url: None,
+            jmap_calendar: None,
             concurrency: capycal::DEFAULT_CONCURRENCY,
         };
         let change = SettingsChange {
@@ -1955,6 +1964,7 @@ fields = ["DTSTART"]
             .tx
             .send(Command::TestAccount {
                 account: None,
+                protocol: capycal::Protocol::default(),
                 url: server.uri(),
                 username: "u".into(),
                 password: Some("p".into()),
@@ -1971,6 +1981,7 @@ fields = ["DTSTART"]
             .tx
             .send(Command::TestAccount {
                 account: None,
+                protocol: capycal::Protocol::default(),
                 url: server.uri(),
                 username: "u".into(),
                 password: None,
@@ -2138,6 +2149,7 @@ fields = ["DTSTART"]
     fn test_command_debug_hides_the_password() {
         let command = Command::TestAccount {
             account: None,
+            protocol: capycal::Protocol::default(),
             url: "https://x/".into(),
             username: "u".into(),
             password: Some("hunter2".into()),

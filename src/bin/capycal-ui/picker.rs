@@ -98,6 +98,19 @@ fn same_url(a: &str, b: &str) -> bool {
     a.trim_end_matches('/') == b.trim_end_matches('/')
 }
 
+/// Whether the configured calendar is this one found on the server. A JMAP
+/// calendar may be named by its id or its name.
+fn is_listed(calendar: &CalendarConfig, found: &DiscoveredCalendar) -> bool {
+    match (&calendar.jmap_calendar, &found.jmap_id) {
+        (Some(have), Some(id)) => have == id || Some(have) == found.display_name.as_ref(),
+        (None, None) => calendar
+            .url
+            .as_deref()
+            .is_some_and(|u| same_url(u, &found.url)),
+        _ => false,
+    }
+}
+
 impl CalendarPicker {
     pub fn new(config: &Config, with_calendar_app: bool) -> Self {
         let mut accounts: Vec<String> = config.accounts.keys().cloned().collect();
@@ -273,19 +286,17 @@ impl CalendarPicker {
                             let key = self
                                 .configured
                                 .iter()
-                                .find(|(_, c)| {
-                                    of_account(c)
-                                        && c.url.as_deref().is_some_and(|u| same_url(u, &cal.url))
-                                })
+                                .find(|(_, c)| of_account(c) && is_listed(c, cal))
                                 .map(|(k, _)| k.clone());
                             Entry {
                                 proposal: (
                                     calendar_key(&display),
                                     CalendarConfig {
                                         account: Some(account.clone()),
-                                        url: Some(cal.url.clone()),
+                                        url: cal.jmap_id.is_none().then(|| cal.url.clone()),
                                         eventkit_calendar: None,
                                         ics_url: None,
+                                        jmap_calendar: cal.jmap_id.clone(),
                                         concurrency: capycal::DEFAULT_CONCURRENCY,
                                     },
                                 ),
@@ -300,12 +311,7 @@ impl CalendarPicker {
                         .collect();
                     entries.sort_by_key(|e| e.label.to_lowercase());
                     let missing = self.known(
-                        |c| {
-                            of_account(c)
-                                && !found
-                                    .iter()
-                                    .any(|f| c.url.as_deref().is_some_and(|u| same_url(u, &f.url)))
-                        },
+                        |c| of_account(c) && !found.iter().any(|f| is_listed(c, f)),
                         Some("Not found on the server"),
                     );
                     entries.extend(missing);
@@ -349,6 +355,7 @@ impl CalendarPicker {
                                     url: None,
                                     eventkit_calendar: Some(cal.identifier.clone()),
                                     ics_url: None,
+                                    jmap_calendar: None,
                                     concurrency: capycal::DEFAULT_CONCURRENCY,
                                 },
                             ),
@@ -398,7 +405,40 @@ mod tests {
             display_name: Some(name.into()),
             color: None,
             writable,
+            jmap_id: None,
         }
+    }
+
+    #[test]
+    fn test_jmap_calendars_are_chosen_by_id() {
+        let config: Config = toml::from_str(
+            "[accounts.mail]\nurl = \"https://x/\"\nusername = \"u\"\npassword = \"p\"\n\
+             protocol = \"jmap\"\n\
+             [calendars.known]\naccount = \"mail\"\njmap_calendar = \"Team\"\n\
+             [calendars.gone]\naccount = \"mail\"\njmap_calendar = \"zz\"\n",
+        )
+        .unwrap();
+        let mut picker = CalendarPicker::new(&config, false);
+        let jmap = |id: &str, name: &str| DiscoveredCalendar {
+            jmap_id: Some(id.into()),
+            ..found(&format!("/{id}"), name, true)
+        };
+        picker.set_account_listing(
+            "mail",
+            Listing::Loaded(vec![jmap("a", "Team"), jmap("b", "Home")]),
+        );
+        let items = picker.groups(Role::Source, None).remove(0).items;
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, ["Home", "Team", "gone"]);
+        assert_eq!(items[2].hint, Some("Not found on the server"));
+
+        let new = picker.choose(0, 0);
+        assert!(new.new_entry);
+        assert_eq!(new.calendar.jmap_calendar.as_deref(), Some("b"));
+        assert_eq!(new.calendar.url, None);
+        // Configured by name, so no second entry for it
+        let known = picker.choose(0, 1);
+        assert_eq!((known.key.as_str(), known.new_entry), ("known", false));
     }
 
     #[test]

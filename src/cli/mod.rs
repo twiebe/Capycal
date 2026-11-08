@@ -67,6 +67,10 @@ pub struct Cli {
     #[arg(long, value_name = "URL")]
     pub discover: Option<String>,
 
+    /// Discover calendars on a JMAP server (provide server URL)
+    #[arg(long, value_name = "URL")]
+    pub discover_jmap: Option<String>,
+
     /// Start with a full sync: compare the whole source with the sink, create
     /// missing events, update differing ones, remove duplicates and orphans
     #[arg(long)]
@@ -159,7 +163,10 @@ async fn dispatch(cli: Cli) -> CliResult {
         return service::uninstall();
     }
     if let Some(url) = &cli.discover {
-        return discover::caldav(url).await;
+        return discover::account(url, crate::config::Protocol::Caldav).await;
+    }
+    if let Some(url) = &cli.discover_jmap {
+        return discover::account(url, crate::config::Protocol::Jmap).await;
     }
     let config_path = cli.config_path();
     if cli.generate_config {
