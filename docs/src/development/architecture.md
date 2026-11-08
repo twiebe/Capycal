@@ -284,6 +284,10 @@ The coordinator waits up to 30 seconds (`SHUTDOWN_TIMEOUT`) for a stopped sync's
 - The address is a `Credential` (`CalendarConfig::ics_url`), resolved in `build_source`. It is never logged: errors use `reqwest::Error::without_url` and name the calendar key, `{{source_url}}` is `ics://feed`, and `SyncConfig::output_key` only hashes it. A `user:password@` in the address becomes Basic auth (reqwest). `webcal://` is HTTPS.
 - No retry loop: a failed GET fails the cycle, and the runner retries it after `ERROR_RETRY` (see [Sync algorithm](#sync-algorithm)).
 
+## JMAP specifics
+
+- `jmap::convert` is our own JSCalendar <-> iCal converter. Stalwart's `calcard` (0.3.14, checked in November 2026) was considered and left out. As a sync converter it would need a Group around every event, else the iCal has no `DTSTART` and no overrides. Its overrides carry only their patch, so in iCal a moved occurrence has no end (zero length) and no alarms. A date `UNTIL` on a timed series drops the last day. An override's own time zone is lost. A zone only a VTIMEZONE defines turns floating. Markers, update patches and `same_event` would still be ours.
+
 ## EventKit specifics
 
 - Apple limits EventKit predicate queries to about 4 years. `all_events` uses chunked queries, each inside its own `autoreleasepool`. The source's `fetch_changes` runs the whole query in `spawn_blocking` inside an `autoreleasepool`, so it does not stall the tokio workers of other syncs and a shutdown can drop the cycle while it waits.
