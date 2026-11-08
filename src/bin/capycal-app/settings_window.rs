@@ -37,7 +37,7 @@ const CSS: &str = "
 row.capycal-plain { padding: 8px 12px; }
 /* The plus cut out of the circle, like macOS's plus.circle.fill */
 menubutton.capycal-add-step > button { color: @window_bg_color; }
-row.capycal-hinted .edit-icon { -gtk-icon-size: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; }
+row.capycal-hinted .edit-icon { -gtk-icon-size: 1px; opacity: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; }
 row.expander list.nested > row.capycal-drop-row, list.boxed-list > row.capycal-drop-row { min-height: 0; padding: 0 12px; border-bottom: none; }
 row.capycal-any { box-shadow: inset 4px 0 alpha(currentColor, 0.3); }
 .capycal-stage > list { transition: outline-color 150ms ease-in-out; outline: 2px solid transparent; outline-offset: 0; }
