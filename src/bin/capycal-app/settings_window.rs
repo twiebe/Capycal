@@ -56,6 +56,27 @@ thread_local! {
     static LAST_SIZE: Cell<Option<(i32, i32)>> = const { Cell::new(None) };
 }
 
+/// The Settings window's first size: large, but not beyond most of the screen.
+fn default_size(monitor: Option<(i32, i32)>) -> (i32, i32) {
+    const PREFERRED: (i32, i32) = (1400, 900);
+    match monitor {
+        Some((width, height)) => (
+            PREFERRED.0.min(width * 85 / 100),
+            PREFERRED.1.min(height * 85 / 100),
+        ),
+        None => (1200, 760),
+    }
+}
+
+/// The size of the first monitor in application pixels. Before the window
+/// is shown, Wayland does not tell which monitor it will be on.
+fn first_monitor() -> Option<(i32, i32)> {
+    let monitors = gtk::gdk::Display::default()?.monitors();
+    let monitor = monitors.item(0)?.downcast::<gtk::gdk::Monitor>().ok()?;
+    let area = monitor.geometry();
+    Some((area.width(), area.height()))
+}
+
 /// A sidebar section: title, entries, the id of an entry.
 type SidebarSection<'a> = (&'a str, &'a [SidebarItem], fn(String) -> FieldId, bool);
 
@@ -208,8 +229,10 @@ impl SettingsWindow {
             .margin_end(8)
             .width_request(SIDEBAR_WIDTH)
             .build();
+        // At the top: the joints' lines expand, but only to their row's height
         let editor = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
+            .valign(gtk::Align::Start)
             .spacing(8)
             .margin_top(18)
             .margin_bottom(18)
@@ -312,11 +335,12 @@ impl SettingsWindow {
             .min_sidebar_width(f64::from(SIDEBAR_WIDTH + 16))
             .max_sidebar_width(280.0)
             .build();
+        let (width, height) = default_size(first_monitor());
         let window = adw::Window::builder()
             .application(application)
             .title("Settings")
-            .default_width(1200)
-            .default_height(760)
+            .default_width(width)
+            .default_height(height)
             .content(&split)
             .build();
         let closing = notify.clone();
@@ -2516,4 +2540,18 @@ fn step_menu<const N: usize>(
         popover.popup();
     });
     row.add_controller(click);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_size;
+
+    #[test]
+    fn test_default_size_fits_the_screen() {
+        assert_eq!(default_size(Some((2560, 1440))), (1400, 900));
+        // 2560x1600 at 160%
+        assert_eq!(default_size(Some((1600, 1000))), (1360, 850));
+        assert_eq!(default_size(Some((1280, 800))), (1088, 680));
+        assert_eq!(default_size(None), (1200, 760));
+    }
 }

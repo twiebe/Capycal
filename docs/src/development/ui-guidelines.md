@@ -84,6 +84,7 @@ These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and
 - Motion answers an action and shows what changed: a chevron turns (0.2 s, ease in and out), opened fields fade in, the worked-in step gets a ring. Nothing moves by itself.
 - With "Reduce motion" on (macOS), changes happen without animation.
 - A change of state never changes the size of what is next to it (fixed boxes for icons that change).
+- A window taller than its content keeps the content at the top: no gap grows with the window. Settings opens large (GTK: 1400 x 900, at most 85 % of the screen).
 
 ## Accessibility
 
