@@ -315,8 +315,8 @@ impl SettingsWindow {
         let window = adw::Window::builder()
             .application(application)
             .title("Settings")
-            .default_width(1100)
-            .default_height(680)
+            .default_width(1200)
+            .default_height(760)
             .content(&split)
             .build();
         let closing = notify.clone();
@@ -570,7 +570,7 @@ impl SettingsWindow {
             for item in entries {
                 let icon = gtk::Image::builder()
                     .icon_name(if sync {
-                        "emblem-synchronizing-symbolic"
+                        crate::icons::SYNC
                     } else {
                         "network-server-symbolic"
                     })

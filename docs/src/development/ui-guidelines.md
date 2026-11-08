@@ -36,6 +36,8 @@ These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and
 - **No red**, not even for Delete: the question before deleting is the warning. Delete still reports a destructive action to accessibility (`setHasDestructiveAction`).
 - A problem's text is in the normal text color, after an orange warning sign. Never colored text.
 - Account and sync icons use the accent alike.
+- In GTK, a glyph on an accent tile is one of the app's own symbolic SVGs (`icons.rs`, e.g. `icons::SYNC`), not a theme name like `emblem-synchronizing-symbolic`: some icon themes draw those in color, with a gray box of their own inside the tile.
+- A window that stands for the app itself (the GTK menu window) opens with the app icon, its name and version, like About; its action rows carry a leading symbolic icon, the problem row the warning sign.
 
 ## Text
 

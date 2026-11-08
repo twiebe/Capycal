@@ -29,7 +29,7 @@ use crate::settings_view::{
 };
 use crate::text_window_macos::{button, focus};
 
-const SIZE: NSSize = NSSize::new(1100.0, 720.0);
+const SIZE: NSSize = NSSize::new(1200.0, 800.0);
 /// The column right of the editor that keeps the preview in view.
 const ASIDE_WIDTH: f64 = 240.0;
 /// The wizard: no sidebar, a smaller window.

@@ -31,16 +31,18 @@ impl MenuWindow {
             .revealed(false)
             .build();
         let page = adw::PreferencesPage::new();
+        page.add(&hero());
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         content.append(&banner);
         content.append(&page);
         let view = adw::ToolbarView::new();
-        view.add_top_bar(&adw::HeaderBar::new());
+        // The logo below names the window
+        view.add_top_bar(&adw::HeaderBar::builder().show_title(false).build());
         view.set_content(Some(&content));
         let window = adw::Window::builder()
             .application(application)
             .title("Capycal")
-            .default_width(460)
+            .default_width(420)
             .default_height(640)
             .content(&view)
             .build();
@@ -114,6 +116,19 @@ impl MenuWindow {
                     .activatable(true)
                     .sensitive(*enabled)
                     .build();
+                let (icon, classes): (&str, &[&str]) = match action {
+                    Action::SyncNow => (crate::icons::SYNC, &[]),
+                    Action::Settings => ("emblem-system-symbolic", &[]),
+                    Action::ShowProblems => ("dialog-warning-symbolic", &["warning"]),
+                    Action::About => ("help-about-symbolic", &[]),
+                    Action::Quit => ("application-exit-symbolic", &[]),
+                };
+                row.add_prefix(
+                    &gtk::Image::builder()
+                        .icon_name(icon)
+                        .css_classes(classes.to_vec())
+                        .build(),
+                );
                 let click = on_click(action);
                 row.connect_activated(move |_| click());
                 row.upcast()
@@ -121,6 +136,36 @@ impl MenuWindow {
             Item::Separator => gtk::Separator::new(gtk::Orientation::Horizontal).upcast(),
         }
     }
+}
+
+/// The app icon and name above the items.
+fn hero() -> adw::PreferencesGroup {
+    let content = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(4)
+        .margin_bottom(8)
+        .build();
+    content.append(
+        &gtk::Image::builder()
+            .icon_name(crate::icons::APP)
+            .pixel_size(96)
+            .build(),
+    );
+    content.append(
+        &gtk::Label::builder()
+            .label("Capycal")
+            .css_classes(["title-2"])
+            .build(),
+    );
+    content.append(
+        &gtk::Label::builder()
+            .label(format!("Version {}", capycal::VERSION))
+            .css_classes(["dim-label", "caption"])
+            .build(),
+    );
+    let group = adw::PreferencesGroup::new();
+    group.add(&content);
+    group
 }
 
 impl Drop for MenuWindow {
