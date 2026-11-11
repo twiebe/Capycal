@@ -34,7 +34,12 @@ impl Server {
             base.push('/');
         }
         Self {
-            client: Client::new(),
+            // Apache (Nextcloud) closes an idle connection after 5 s, and the
+            // close does not always reach a pooled one before its next request
+            client: Client::builder()
+                .pool_idle_timeout(std::time::Duration::from_secs(2))
+                .build()
+                .unwrap(),
             base,
             user: std::env::var("CAPYCAL_TEST_CALDAV_USER").unwrap_or_else(|_| "test".into()),
             password: std::env::var("CAPYCAL_TEST_CALDAV_PASSWORD")
