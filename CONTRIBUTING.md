@@ -15,6 +15,10 @@ By opening a pull request you confirm that:
 - it contains no copyleft code (GPL, LGPL, AGPL, MPL, EUPL), and
 - you license it under the MIT License to everyone, including the maintainer, who may distribute it as part of Capycal under the GPL or under other terms.
 
-The confirmation covers every commit in the pull request, also commits by co-authors; whoever adds a commit confirms the same, if needed in a comment. If you write the code for an employer, make sure your employer agrees. Code you generate with an AI tool counts as your own contribution; you are responsible for it. If an AI tool wrote substantial parts, say so in the pull request description, so the review can look for copied code.
+The confirmation covers every commit in the pull request, also commits by co-authors; whoever adds a commit confirms the same, if needed in a comment. If you write the code for an employer, make sure your employer agrees. Code you generate with an AI tool counts as your own contribution; you are responsible for it.
 
 Add a line `- Copyright (c) <year> <name> <profile URL>` to [`CONTRIBUTORS.md`](CONTRIBUTORS.md) in the same pull request; this keeps the copyright notice the MIT License asks for. Pull requests without the confirmation in the pull request template are not merged.
+
+## AI usage
+
+If you used an AI tool for a pull request, say so in its description: which tool, and what it did (which files or parts it wrote or changed, and whether for code, tests, docs or the description itself). A pull request without AI use says "None". This applies to outside contributions; the maintainers are exempt.
