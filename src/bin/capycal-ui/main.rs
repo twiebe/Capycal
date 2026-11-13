@@ -31,6 +31,8 @@ mod menu;
 #[cfg(target_os = "macos")]
 mod panel_window_macos;
 #[cfg(any(target_os = "macos", test))]
+mod password_prompt;
+#[cfg(any(target_os = "macos", test))]
 mod picker;
 #[cfg(any(target_os = "macos", test))]
 mod preview;

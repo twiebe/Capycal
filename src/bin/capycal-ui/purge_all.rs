@@ -128,6 +128,7 @@ impl PurgeAllDialog {
             )),
             message: format!("Type {} to confirm.", self.name),
             entry: Some(self.name.clone()),
+            secret: false,
             buttons: &["Cancel", "Remove All Events"],
             destructive: true,
             last_disabled: self.typed.trim() != self.name,
@@ -250,6 +251,7 @@ fn empty() -> View {
         choice: None,
         warning: None,
         entry: None,
+        secret: false,
         last_disabled: false,
     }
 }

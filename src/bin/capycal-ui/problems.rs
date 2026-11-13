@@ -76,6 +76,12 @@ fn problem_detail(problem: &Problem) -> String {
             "The config could not be loaded. Running syncs continue with the previous \
              config.\nFix the config and save it; the app reloads it by itself.\n\n{e}"
         ),
+        Problem::Passwords(accounts) => format!(
+            "The {} has no password for {}. Until it has, Capycal starts no syncs of this \
+             config. Open Settings and choose Enter Password\u{2026} on General.",
+            crate::password_prompt::store(),
+            crate::password_prompt::accounts_text(accounts)
+        ),
         Problem::Locked { pid } => format!(
             "Another Capycal process (pid {pid}) runs this config. Quit it, then choose \
              Reload Config."
@@ -162,6 +168,15 @@ mod tests {
             text(&ok, &[line(Level::INFO, "synced")]),
             "Everything runs.\n"
         );
+    }
+
+    #[test]
+    fn test_a_missing_password_names_the_accounts_and_the_way_out() {
+        let snapshot = snapshot(Some(Problem::Passwords(vec!["work".into()])), vec![]);
+        assert!(has_problems(&snapshot));
+        let text = text(&snapshot, &[]);
+        assert!(text.contains("no password for the account work"), "{text}");
+        assert!(text.contains("Enter Password\u{2026}"), "{text}");
     }
 
     #[test]

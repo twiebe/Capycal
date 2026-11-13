@@ -53,6 +53,10 @@ A condition on the start (`days`, `start_time`, `end_time`) uses the timezone of
 
 macOS ties the permission to read a Keychain item to the exact build of the app, since Capycal is not signed with an Apple Developer ID. **Always Allow** keeps it until the next update; after an update macOS asks once more for each account. The app explains this before the prompt appears. To avoid the prompts, take the password from a file or an environment variable instead (see [Credentials](concepts/calendars.md#passwords)).
 
+### "No password for ..." after switching the desktop or keyring
+
+The config keeps only the name of a password (`{ keychain = "<account>" }`), the password itself is in the Keychain on macOS or the keyring on Linux. Another keyring, for example KWallet after GNOME Keyring, or a reset Keychain does not have it. Capycal then asks for the password of each account and stores it again; until then it starts none of the config's syncs. If you closed the question, choose **Enter Password…** under **Needs attention** on General in Settings.
+
 ### The app won't open ("cannot be opened", "unidentified developer")
 
 The app is not notarized. Right-click `Capycal.app` in Finder and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/Capycal.app`. For the CLI binary: `xattr -d com.apple.quarantine /usr/local/bin/capycal`. If the app opens but no menu bar icon appears, the menu bar may be full; quit other menu bar apps or check with `pgrep -l capycal-ui`.

@@ -78,6 +78,7 @@ These rules hold for the desktop apps: the macOS menu bar app (`capycal-ui`) and
 - **A menu bar app with a window behaves like an app**: on macOS it shows in the Dock, in Cmd+Tab and with its own menu bar (app menu with Settings… and Quit, Edit, Window) while any of its windows is open, and leaves the Dock with the last one. Cmd+W closes, Cmd+Q quits (Ctrl on Linux), asking only about unsaved changes. On Linux every window and dialog gets both from `window_keys` (`capycal-app/main.rs`), and every Quit, the tray's included, goes through Settings while it is open.
 - **An offer the app makes by itself can wait**: a window Capycal opens unasked (sponsoring, an update) has a button to ask later and one to stop asking; closing it counts as later. Its main action is the default button, a link to read more keeps the window open.
 - **Ask for permissions in context**: say why before the system asks (Calendar.app access). Before a Keychain prompt (`keychain_notice.rs`), check silently whether one will come and only then explain what Capycal reads, what stays closed and which button keeps the system from asking again.
+- **Ask for what is missing instead of pointing at the file**: a password the keychain does not have (`backend::Problem::Passwords`, found before the syncs start) opens a dialog per account with a hidden field (`View::secret`) that stores it again (`password_prompt.rs`), once per run; **Not Now** leaves **Enter Password…** under **Needs attention**.
 
 ## Motion
 

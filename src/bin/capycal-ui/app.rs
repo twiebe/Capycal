@@ -40,6 +40,7 @@ use crate::log_window_macos::LogWindow;
 use crate::logview::{self, Input};
 use crate::menu::{self, Action, Icon, Item};
 use crate::panel_window_macos::{LARGE, PanelInput, PanelWindow};
+use crate::password_prompt::{self, PasswordPrompt};
 use crate::problems;
 use crate::purge::{PurgeDialog, Reply};
 use crate::purge_all::PurgeAllDialog;
@@ -80,6 +81,7 @@ enum UserEvent {
     Sponsor(PanelInput),
     /// The Keychain note was answered or closed.
     KeychainNotice,
+    Password(PanelInput),
     /// A look for a new release ended; `manual` for Check Now.
     UpdateChecked {
         manual: bool,
@@ -120,6 +122,7 @@ struct App {
     purge_all_window: Option<(DialogWindow, PurgeAllDialog)>,
     sponsor_window: Option<DialogWindow>,
     keychain_window: Option<DialogWindow>,
+    password_window: Option<(DialogWindow, PasswordPrompt)>,
     /// The Settings screen lives on while its save runs, even if the
     /// window was closed.
     settings: Option<SettingsScreen>,
@@ -214,6 +217,7 @@ pub fn run(config_path: PathBuf) -> ExitCode {
         purge_all_window: None,
         sponsor_window: None,
         keychain_window: None,
+        password_window: None,
         settings: None,
         last_selection: None,
         settings_window: None,
@@ -299,6 +303,7 @@ impl App {
             },
             Event::UserEvent(UserEvent::Purge(input)) => self.on_purge_input(input),
             Event::UserEvent(UserEvent::PurgeAll(input)) => self.on_purge_all_input(input),
+            Event::UserEvent(UserEvent::Password(input)) => self.on_password_input(input),
             Event::UserEvent(UserEvent::ErrorClosed) => self.error_window = None,
             Event::UserEvent(UserEvent::Settings(raw)) => {
                 if let Some(input) = self.settings_window.as_ref().and_then(|w| w.translate(raw)) {
@@ -398,6 +403,7 @@ impl App {
             || self.purge_all_window.is_some()
             || self.sponsor_window.is_some()
             || self.keychain_window.is_some()
+            || self.password_window.is_some()
             || self.update_window.is_some()
             || self.settings_window.is_some();
         if windows == self.in_dock {
@@ -510,6 +516,16 @@ impl App {
             Update::ConfigReady(Err(message)) => self.show_error("Edit Config", &message),
             Update::ReloadFailed => self.show_config_problem(),
             Update::KeychainNotice(accounts) => self.explain_keychain(&accounts),
+            Update::AskPasswords(accounts) => self.ask_passwords(accounts),
+            Update::PasswordStored { account, result } => {
+                if result.is_ok() {
+                    self.send(Command::Reload);
+                }
+                if let Some((_, prompt)) = &mut self.password_window {
+                    let reply = prompt.stored(&account, &result);
+                    self.on_password_reply(reply);
+                }
+            }
             Update::AccountCalendars { .. }
             | Update::AccountTested(_)
             | Update::CalendarAppCalendars(_)
@@ -596,6 +612,7 @@ impl App {
         self.purge_all_window = None;
         self.sponsor_window = None;
         self.keychain_window = None;
+        self.password_window = None;
         self.update_window = None;
         // A running save finishes first: the backend handles commands in order
         self.settings_question = None;
@@ -717,6 +734,55 @@ impl App {
             &keychain_notice::view(accounts),
             notify,
         ));
+    }
+
+    /// Ask for the passwords the keychain does not have.
+    fn ask_passwords(&mut self, accounts: Vec<String>) {
+        if let Some((window, _)) = &self.password_window {
+            return window.focus();
+        }
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let proxy = self.proxy.clone();
+        let notify = move |input| {
+            let _ = proxy.send_event(UserEvent::Password(input));
+        };
+        let prompt = PasswordPrompt::new(accounts);
+        let window = DialogWindow::open(mtm, "key.fill", None, &prompt.view(), notify);
+        self.password_window = Some((window, prompt));
+    }
+
+    fn on_password_input(&mut self, input: PanelInput) {
+        let Some((window, prompt)) = &mut self.password_window else {
+            return;
+        };
+        let reply = match input {
+            PanelInput::Button(crate::dialog::TYPED) => {
+                prompt.typed(&window.entry_text());
+                password_prompt::Reply::Show
+            }
+            PanelInput::Button(i) => prompt.press(i, window.entry_text()),
+            PanelInput::Closed => password_prompt::Reply::Close,
+        };
+        self.on_password_reply(reply);
+    }
+
+    fn on_password_reply(&mut self, reply: password_prompt::Reply) {
+        match reply {
+            password_prompt::Reply::Close => self.password_window = None,
+            password_prompt::Reply::Store { account, password } => {
+                self.send(Command::StorePassword { account, password });
+                if let Some((window, prompt)) = &mut self.password_window {
+                    window.show(&prompt.view());
+                }
+            }
+            password_prompt::Reply::Show => {
+                if let Some((window, prompt)) = &mut self.password_window {
+                    window.show(&prompt.view());
+                }
+            }
+        }
     }
 
     fn on_sponsor_input(&mut self, input: PanelInput) {
@@ -1206,6 +1272,7 @@ impl App {
                     syncs,
                 } => self.purge_calendar(calendar, name, syncs),
                 settings_view::Reply::ShowLog => self.show_log(),
+                settings_view::Reply::AskPasswords(accounts) => self.ask_passwords(accounts),
                 settings_view::Reply::OpenUrl(url) => open_url(url),
                 settings_view::Reply::RevealConfig => {
                     if let Err(e) = std::process::Command::new("open")
@@ -1282,6 +1349,7 @@ impl App {
             choice: None,
             warning: None,
             entry: None,
+            secret: false,
             last_disabled: false,
             footnote: None,
         };

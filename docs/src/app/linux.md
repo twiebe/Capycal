@@ -36,7 +36,7 @@ Don't run the app and the [systemd user service](../cli/server.md#user-service) 
 | Log file | `~/.local/share/capycal/capycal-app.log` |
 | Sponsor dialog answers | `~/.config/capycal/sponsor`. `CAPYCAL_ASK_SPONSOR=1` asks at the next quiet moment, a line `sponsoring=1` shows the thank-you, deleting the file resets it |
 
-A password typed in Settings is stored in your keyring through the Secret Service (GNOME Keyring, KWallet), as `{ keychain = "<account>" }` in the config. Passwords can also come from your keyring with a [command credential](../concepts/calendars.md#passwords), for example `{ command = "secret-tool lookup service capycal account work" }`.
+A password typed in Settings is stored in your keyring through the Secret Service (GNOME Keyring, KWallet), as `{ keychain = "<account>" }` in the config. Each keyring keeps its own passwords: after switching from GNOME to KDE or back, Capycal asks for them again (see [Troubleshooting](../troubleshooting.md#no-password-for--after-switching-the-desktop-or-keyring)). The entries are named `keyring:<account>@app.capycal` (KWallet Manager shows them in the wallet that serves the Secret Service, usually `kdewallet`); `secret-tool search --all service app.capycal` lists them. Passwords can also come from your keyring with a [command credential](../concepts/calendars.md#passwords), for example `{ command = "secret-tool lookup service capycal account work" }`.
 
 **Ctrl+W** closes a window or dialog and **Ctrl+Q** quits the app from any of them; with unsaved changes in Settings both ask first. **Esc** cancels the new-sync assistant. In Settings, Ctrl+S, Ctrl+N, Ctrl+Delete and Ctrl+Z work as Cmd on macOS.
 

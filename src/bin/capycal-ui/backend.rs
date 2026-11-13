@@ -63,6 +63,13 @@ pub enum Command {
     SaveSettings(SettingsChange),
     /// The app closed the note of `Update::KeychainNotice`: load the config.
     KeychainNoticeClosed,
+    /// Store the typed password of an account in the keychain entry its
+    /// config names, answered with `Update::PasswordStored`. The app reloads
+    /// the config afterwards.
+    StorePassword {
+        account: String,
+        password: String,
+    },
     /// Stop all syncs, then signal the sender.
     Shutdown(std::sync::mpsc::Sender<()>),
 }
@@ -101,6 +108,11 @@ impl std::fmt::Debug for Command {
                 .finish(),
             Command::SaveSettings(change) => f.debug_tuple("SaveSettings").field(change).finish(),
             Command::KeychainNoticeClosed => f.write_str("KeychainNoticeClosed"),
+            Command::StorePassword { account, .. } => f
+                .debug_struct("StorePassword")
+                .field("account", account)
+                .field("password", &"***")
+                .finish(),
             Command::Shutdown(_) => f.write_str("Shutdown"),
         }
     }
@@ -161,6 +173,14 @@ pub enum Update {
     /// accounts. The backend loads the config after
     /// `Command::KeychainNoticeClosed`.
     KeychainNotice(Vec<String>),
+    /// The keychain has no password for these accounts; the app asks for
+    /// them. Sent once per account and run.
+    AskPasswords(Vec<String>),
+    /// A `Command::StorePassword` finished.
+    PasswordStored {
+        account: String,
+        result: Result<(), String>,
+    },
 }
 
 /// The keychain functions the backend calls; tests replace them.
@@ -171,6 +191,8 @@ pub struct Keychain {
     pub delete: fn(&str) -> Result<(), String>,
     /// Whether reading the entry would make macOS ask first.
     pub prompts: fn(&str) -> bool,
+    /// Whether there is no such entry.
+    pub missing: fn(&str) -> bool,
 }
 
 impl Default for Keychain {
@@ -182,6 +204,7 @@ impl Default for Keychain {
             },
             delete: |name| capycal::delete_keychain_password(name).map_err(|e| e.to_string()),
             prompts: capycal::keychain_would_prompt,
+            missing: capycal::keychain_entry_missing,
         }
     }
 }
@@ -191,6 +214,8 @@ impl Default for Keychain {
 pub enum Problem {
     NoConfig,
     Config(String),
+    /// The keychain has no password for these accounts.
+    Passwords(Vec<String>),
     /// Another process holds the config lock.
     Locked {
         pid: String,
@@ -268,6 +293,8 @@ pub struct Backend<F> {
     /// Applies `log_level` of each loaded config.
     log_level: LogLevel,
     keychain: Keychain,
+    /// The accounts `Update::AskPasswords` asked for in this run.
+    asked: std::collections::BTreeSet<String>,
     notify: Arc<F>,
 }
 
@@ -282,6 +309,7 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
             activity: None,
             log_level: LogLevel::default(),
             keychain: Keychain::default(),
+            asked: Default::default(),
             notify: Arc::new(notify),
         }
     }
@@ -365,6 +393,9 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
             Command::NextSourceEvent { calendar, sync } => self.next_source_event(calendar, sync),
             Command::SaveSettings(change) => self.save_settings(change).await,
             Command::KeychainNoticeClosed => {}
+            Command::StorePassword { account, password } => {
+                self.store_password(account, password).await
+            }
             Command::Shutdown(done) => {
                 std::mem::take(&mut self.coordinator).shutdown().await;
                 let _ = done.send(());
@@ -426,6 +457,12 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
     async fn reload(&mut self) {
         self.problem = self.try_reload().await.err();
         (self.notify)(Update::ConfigChanged);
+        if let Some(Problem::Passwords(accounts)) = &self.problem {
+            let new = accounts.iter().filter(|a| self.asked.insert(a.to_string()));
+            if new.count() > 0 {
+                (self.notify)(Update::AskPasswords(accounts.clone()));
+            }
+        }
         if matches!(
             self.problem,
             Some(Problem::Config(_) | Problem::Locked { .. })
@@ -445,6 +482,21 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
             error!(error = %e, "invalid config");
             Problem::Config(e.to_string())
         })?;
+        let keychain = self.keychain;
+        let entries = keychain_accounts(&config);
+        let missing: Vec<String> = tokio::task::spawn_blocking(move || {
+            entries
+                .into_iter()
+                .filter(|(_, entry)| (keychain.missing)(entry))
+                .map(|(account, _)| account)
+                .collect()
+        })
+        .await
+        .unwrap_or_default();
+        if !missing.is_empty() {
+            warn!(accounts = ?missing, "no password in the keychain");
+            return Err(Problem::Passwords(missing));
+        }
         let locked = match self.lock.as_mut() {
             Some(lock) => lock.update(&config, &self.config_path),
             None => ConfigLock::acquire(&config, &self.config_path).map(|l| self.lock = Some(l)),
@@ -470,6 +522,30 @@ impl<F: Fn(Update) + Send + Sync + 'static> Backend<F> {
         self.log_level.set(&config.daemon.log_level);
         self.config = Some(config);
         Ok(())
+    }
+
+    async fn store_password(&mut self, account: String, password: String) {
+        let entry = Config::read(&self.config_path)
+            .map_err(|e| e.to_string())
+            .and_then(|(config, _)| match config.accounts.get(&account) {
+                Some(capycal::AccountConfig {
+                    password: Credential::Keychain { keychain },
+                    ..
+                }) => Ok(keychain.clone()),
+                _ => Err(format!("the account {account} has no keychain entry")),
+            });
+        let keychain = self.keychain;
+        let result = match entry {
+            Ok(entry) => tokio::task::spawn_blocking(move || (keychain.set)(&entry, &password))
+                .await
+                .unwrap_or_else(|e| Err(e.to_string())),
+            Err(e) => Err(e),
+        };
+        match &result {
+            Ok(()) => info!(account, "password stored in the keychain"),
+            Err(e) => error!(account, error = %e, "cannot store the password"),
+        }
+        (self.notify)(Update::PasswordStored { account, result });
     }
 
     fn clear_problem(&mut self, is_cleared: impl Fn(&Problem) -> bool) {
@@ -1573,6 +1649,7 @@ fields = ["DTSTART"]
                 Ok(())
             },
             prompts: |_| false,
+            missing: |name| !in_keychain(name),
         }
     }
 
@@ -1708,6 +1785,52 @@ fields = ["DTSTART"]
         backend.tx.send(Command::KeychainNoticeClosed).unwrap();
         backend.running(&["a-to-b"]).await;
         backend.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_asks_once_for_a_missing_password_and_stores_it() {
+        let server = MockServer::start().await;
+        let dir = test_dir("missing-password");
+        let path = write_config(&dir, "a-to-b", &server);
+        let toml = std::fs::read_to_string(&path).unwrap().replace(
+            "password = \"p\"",
+            "password = { keychain = \"kc-missing\" }",
+        );
+        std::fs::write(&path, &toml).unwrap();
+        let mut backend = Running::start(path.clone());
+        assert_eq!(
+            backend.next(|u| matches!(u, Update::AskPasswords(_))).await,
+            Update::AskPasswords(vec!["acc".to_string()])
+        );
+        backend
+            .next(|u| {
+                matches!(u, Update::Snapshot(s)
+                    if s.problem == Some(Problem::Passwords(vec!["acc".to_string()])))
+            })
+            .await;
+        // A second reload does not ask again
+        backend.tx.send(Command::Reload).unwrap();
+        backend.next(|u| matches!(u, Update::ConfigChanged)).await;
+        backend
+            .tx
+            .send(Command::StorePassword {
+                account: "acc".to_string(),
+                password: "pw".to_string(),
+            })
+            .unwrap();
+        let stored = backend
+            .next(|u| matches!(u, Update::AskPasswords(_) | Update::PasswordStored { .. }))
+            .await;
+        assert_eq!(
+            stored,
+            Update::PasswordStored {
+                account: "acc".to_string(),
+                result: Ok(())
+            }
+        );
+        assert!(in_keychain("kc-missing"));
+        backend.stop().await;
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

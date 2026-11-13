@@ -114,6 +114,7 @@ fn problem_text(problem: &Problem) -> String {
     match problem {
         Problem::NoConfig => "No config: open Settings\u{2026} to set one up".to_string(),
         Problem::Config(e) => format!("Config error: {}", shorten(e)),
+        Problem::Passwords(accounts) => format!("No password for {}", accounts.join(", ")),
         Problem::Locked { pid } => format!("Another Capycal runs this config (pid {pid})"),
         Problem::Purge(e) => format!("Removing events failed: {}", shorten(e)),
     }
@@ -502,6 +503,8 @@ mod tests {
         assert!(!enabled(&items, Action::SyncNow));
         let items = menu(true, Some(Problem::Config("bad".into())));
         assert_eq!(problem_lines(&items), ["Config error: bad"]);
+        let items = menu(true, Some(Problem::Passwords(vec!["a".into(), "b".into()])));
+        assert_eq!(problem_lines(&items), ["No password for a, b"]);
         let items = menu(true, Some(Problem::Purge("offline".into())));
         assert_eq!(problem_lines(&items), ["Removing events failed: offline"]);
 

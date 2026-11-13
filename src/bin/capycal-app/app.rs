@@ -24,6 +24,7 @@ use crate::icons;
 use crate::log_window::LogWindow;
 use crate::menu::{self, Action};
 use crate::menu_window::MenuWindow;
+use crate::password_prompt::{self, PasswordPrompt};
 use crate::problems;
 use crate::purge::{PurgeDialog, Reply};
 use crate::purge_all::PurgeAllDialog;
@@ -69,6 +70,7 @@ struct App {
     menu_window: Option<MenuWindow>,
     purge_window: Option<(DialogWindow, PurgeDialog)>,
     purge_all_window: Option<(DialogWindow, PurgeAllDialog)>,
+    password_window: Option<(DialogWindow, PasswordPrompt)>,
     sponsor_window: Option<DialogWindow>,
     /// The Settings screen lives on while its save runs, even if the
     /// window was closed.
@@ -207,6 +209,7 @@ impl App {
             menu_window: None,
             purge_window: None,
             purge_all_window: None,
+            password_window: None,
             sponsor_window: None,
             settings: None,
             last_selection: None,
@@ -282,6 +285,16 @@ impl App {
             Update::ReloadFailed => self.show_config_problem(),
             // Only macOS asks before an app reads a Keychain entry
             Update::KeychainNotice(_) => self.send(Command::KeychainNoticeClosed),
+            Update::AskPasswords(accounts) => self.ask_passwords(accounts),
+            Update::PasswordStored { account, result } => {
+                if result.is_ok() {
+                    self.send(Command::Reload);
+                }
+                if let Some((_, prompt)) = &mut self.password_window {
+                    let reply = prompt.stored(&account, &result);
+                    self.on_password_reply(reply);
+                }
+            }
             Update::AccountCalendars { .. }
             | Update::AccountTested(_)
             | Update::CalendarAppCalendars(_)
@@ -523,6 +536,58 @@ impl App {
         );
         self.purge_all_window = Some((window, dialog));
         self.send(Command::CountCalendar(calendar));
+    }
+
+    /// Ask for the passwords the keyring does not have.
+    fn ask_passwords(&mut self, accounts: Vec<String>) {
+        if self.password_window.is_some() {
+            return;
+        }
+        let this = self.this.clone();
+        let notify = move |input| {
+            defer(&this, move |app| app.on_password_input(input));
+        };
+        let prompt = PasswordPrompt::new(accounts);
+        let window = DialogWindow::open(
+            "Password",
+            "dialog-password-symbolic",
+            None,
+            &prompt.view(),
+            notify,
+        );
+        self.password_window = Some((window, prompt));
+    }
+
+    fn on_password_input(&mut self, input: DialogInput) {
+        let Some((window, prompt)) = &mut self.password_window else {
+            return;
+        };
+        let reply = match input {
+            DialogInput::Button(crate::dialog::TYPED) => {
+                prompt.typed(&window.entry_text());
+                password_prompt::Reply::Show
+            }
+            DialogInput::Button(i) => prompt.press(i, window.entry_text()),
+            DialogInput::Closed => password_prompt::Reply::Close,
+        };
+        self.on_password_reply(reply);
+    }
+
+    fn on_password_reply(&mut self, reply: password_prompt::Reply) {
+        match reply {
+            password_prompt::Reply::Close => self.password_window = None,
+            password_prompt::Reply::Store { account, password } => {
+                self.send(Command::StorePassword { account, password });
+                if let Some((window, prompt)) = &mut self.password_window {
+                    window.show(&prompt.view());
+                }
+            }
+            password_prompt::Reply::Show => {
+                if let Some((window, prompt)) = &mut self.password_window {
+                    window.show(&prompt.view());
+                }
+            }
+        }
     }
 
     fn on_purge_all_input(&mut self, input: DialogInput) {
@@ -842,6 +907,7 @@ impl App {
                     syncs,
                 } => self.purge_calendar(calendar, name, syncs),
                 settings_view::Reply::ShowLog => self.show_log(),
+                settings_view::Reply::AskPasswords(accounts) => self.ask_passwords(accounts),
                 settings_view::Reply::OpenUrl(url) => open_uri(url),
                 // The Linux app is updated by its packages
                 settings_view::Reply::SetCheckUpdates(_)
@@ -910,6 +976,7 @@ impl App {
         self.menu_window = None;
         self.purge_window = None;
         self.purge_all_window = None;
+        self.password_window = None;
         self.sponsor_window = None;
         // A running save finishes first: the backend handles commands in order
         self.settings_question = None;

@@ -3323,7 +3323,7 @@ fn show_progress(bar: &NSProgressIndicator, progress: Option<(usize, usize)>) {
 }
 
 /// What VoiceOver says for a control without a title.
-fn accessibility_label(view: &NSView, label: &str) {
+pub(crate) fn accessibility_label(view: &NSView, label: &str) {
     // SAFETY: every NSView takes an accessibility label
     let _: () = unsafe { msg_send![view, setAccessibilityLabel: &*NSString::from_str(label)] };
 }

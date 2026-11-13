@@ -36,7 +36,8 @@ pub struct DialogWindow {
     footnote: gtk::Label,
     shown_buttons: &'static [&'static str],
     shown_destructive: bool,
-    shown_entry: bool,
+    /// The placeholder of the shown field: a new one clears it.
+    shown_entry: Option<String>,
     notify: Rc<dyn Fn(DialogInput)>,
 }
 
@@ -198,7 +199,7 @@ impl DialogWindow {
             footnote,
             shown_buttons: &[],
             shown_destructive: false,
-            shown_entry: false,
+            shown_entry: None,
             notify,
         };
         window.show(view);
@@ -230,6 +231,14 @@ impl DialogWindow {
         self.warning
             .set_text(view.warning.as_deref().unwrap_or_default());
         self.entry.set_visible(view.entry.is_some());
+        self.entry.set_visibility(!view.secret);
+        // Return saves a password; elsewhere the default may be Cancel
+        self.entry.set_activates_default(view.secret);
+        self.entry.set_input_purpose(if view.secret {
+            gtk::InputPurpose::Password
+        } else {
+            gtk::InputPurpose::FreeForm
+        });
         self.entry.set_placeholder_text(view.entry.as_deref());
         self.entry
             .update_property(&[gtk::accessible::Property::Label(
@@ -250,11 +259,11 @@ impl DialogWindow {
             last.set_sensitive(!view.last_disabled);
         }
         // A field that appears takes the focus, so typing goes there
-        if view.entry.is_some() && !self.shown_entry {
+        if view.entry.is_some() && self.shown_entry != view.entry {
             self.entry.set_text("");
             self.entry.grab_focus();
         }
-        self.shown_entry = view.entry.is_some();
+        self.shown_entry = view.entry.clone();
     }
 
     /// The text typed into the field of `View::entry`.

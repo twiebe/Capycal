@@ -11,8 +11,8 @@ use objc2_app_kit::{
     NSFont, NSFontAttributeName, NSForegroundColorAttributeName, NSImage, NSImageScaling,
     NSImageView, NSLayoutAttribute, NSLayoutConstraint, NSMutableParagraphStyle, NSPanel,
     NSParagraphStyleAttributeName, NSPopUpButton, NSProgressIndicator, NSProgressIndicatorStyle,
-    NSStackView, NSStackViewDistribution, NSTextAlignment, NSTextField, NSTitlePosition,
-    NSUserInterfaceLayoutOrientation, NSView, NSWindowStyleMask,
+    NSSecureTextField, NSStackView, NSStackViewDistribution, NSTextAlignment, NSTextField,
+    NSTitlePosition, NSUserInterfaceLayoutOrientation, NSView, NSWindowStyleMask,
 };
 use objc2_foundation::{
     NSArray, NSAttributedString, NSData, NSDictionary, NSMutableAttributedString, NSPoint, NSRect,
@@ -45,7 +45,8 @@ pub struct DialogWindow {
     links: Vec<Retained<NSButton>>,
     shown_buttons: &'static [&'static str],
     shown_destructive: bool,
-    shown_entry: bool,
+    /// The placeholder of the shown field: a new one clears it.
+    shown_entry: Option<String>,
     target: Retained<PanelTarget>,
 }
 
@@ -147,7 +148,11 @@ impl DialogWindow {
                     .constraintLessThanOrEqualToAnchor(&inside.trailingAnchor()),
             ]));
         }
-        let entry = NSTextField::new(mtm);
+        let entry = if view.secret {
+            Retained::into_super(NSSecureTextField::new(mtm))
+        } else {
+            NSTextField::new(mtm)
+        };
         // SAFETY: the delegate is cleared in Drop, before it is released
         unsafe { entry.setDelegate(Some(ProtocolObject::from_ref(&*target))) };
         let progress = NSProgressIndicator::new(mtm);
@@ -270,7 +275,7 @@ impl DialogWindow {
             links,
             shown_buttons: &[],
             shown_destructive: false,
-            shown_entry: false,
+            shown_entry: None,
             target,
         };
         dialog.show(view);
@@ -306,7 +311,11 @@ impl DialogWindow {
         self.entry.setHidden(view.entry.is_none());
         self.entry
             .setPlaceholderString(view.entry.as_deref().map(NSString::from_str).as_deref());
-        if self.shown_entry != view.entry.is_some() {
+        crate::settings_window_macos::accessibility_label(
+            &self.entry,
+            view.entry.as_deref().unwrap_or_default(),
+        );
+        if self.shown_entry != view.entry {
             self.entry.setStringValue(&NSString::new());
         }
         self.spinner.setHidden(!view.busy);
@@ -332,10 +341,10 @@ impl DialogWindow {
             last.setEnabled(!view.last_disabled);
         }
         // A field that appears takes the focus, so typing goes there
-        if view.entry.is_some() && !self.shown_entry {
+        if view.entry.is_some() && self.shown_entry != view.entry {
             self.window.makeFirstResponder(Some(&self.entry));
         }
-        self.shown_entry = view.entry.is_some();
+        self.shown_entry = view.entry.clone();
         self.content.layoutSubtreeIfNeeded();
         self.window.setContentSize(self.content.fittingSize());
     }

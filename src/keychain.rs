@@ -112,6 +112,13 @@ pub fn would_prompt(_name: &str) -> bool {
     false
 }
 
+/// Whether there is no entry `name`. Never makes macOS ask: an entry it
+/// would ask about exists. The Secret Service unlocks a locked collection
+/// first, so a locked entry does not count as missing.
+pub fn is_missing(name: &str) -> bool {
+    !would_prompt(name) && matches!(password(name), Err(keyring_core::Error::NoEntry))
+}
+
 /// An in-memory store instead of the platform one, for tests. Panics if the
 /// platform store was chosen first, so a test never writes to the real one.
 #[cfg(test)]
@@ -139,6 +146,8 @@ mod tests {
             password("test-missing"),
             Err(keyring_core::Error::NoEntry)
         ));
+        assert!(!is_missing("test-read"));
+        assert!(is_missing("test-missing"));
     }
 
     #[test]

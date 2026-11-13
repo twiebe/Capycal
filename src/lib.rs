@@ -33,9 +33,9 @@ pub use config_watch::ConfigWatcher;
 pub use error::{Error, Result};
 pub use eventkit::{CalendarInfo, list_calendars as list_eventkit_calendars};
 pub use keychain::{
-    delete_password as delete_keychain_password, password as keychain_password,
-    rename_entry as rename_keychain_entry, set_password as set_keychain_password,
-    would_prompt as keychain_would_prompt,
+    delete_password as delete_keychain_password, is_missing as keychain_entry_missing,
+    password as keychain_password, rename_entry as rename_keychain_entry,
+    set_password as set_keychain_password, would_prompt as keychain_would_prompt,
 };
 pub use logging::{
     DEFAULT_LOG_CAPACITY, LOG_FILE_MAX_SIZE, LOG_FILES_KEPT, LogBuffer, LogFile, LogLevel, LogLine,

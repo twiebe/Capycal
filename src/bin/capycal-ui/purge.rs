@@ -88,6 +88,7 @@ impl PurgeDialog {
                 choice: None,
                 warning: None,
                 entry: None,
+                secret: false,
                 last_disabled: false,
                 footnote: None,
             },
@@ -134,6 +135,7 @@ impl PurgeDialog {
                 choice: None,
                 warning: None,
                 entry: None,
+                secret: false,
                 last_disabled: false,
                 footnote: None,
             };
@@ -169,6 +171,7 @@ impl PurgeDialog {
             choice,
             warning: None,
             entry: None,
+            secret: false,
             last_disabled: false,
             footnote: Some(confirm_note(chosen.purgeable().len() == 1)),
         };
@@ -209,6 +212,7 @@ impl PurgeDialog {
             choice: None,
             warning: None,
             entry: None,
+            secret: false,
             last_disabled: false,
             footnote: Some(disabled_note(outcomes.len() == 1)),
         };
@@ -255,6 +259,7 @@ impl PurgeDialog {
             choice: None,
             warning: None,
             entry: None,
+            secret: false,
             last_disabled: false,
             footnote: None,
         }

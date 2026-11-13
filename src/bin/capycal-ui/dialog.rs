@@ -170,6 +170,9 @@ pub struct View {
     /// A text field above the buttons with this placeholder; a change is
     /// reported as button `TYPED` and the window has the text.
     pub entry: Option<String>,
+    /// The field of `entry` hides what is typed (a password). Set when the
+    /// window opens.
+    pub secret: bool,
     /// The last button is off, such as until the right text is typed.
     pub last_disabled: bool,
 }
@@ -247,6 +250,7 @@ mod tests {
             choice: None,
             warning: None,
             entry: None,
+            secret: false,
             last_disabled: false,
             footnote: None,
         }

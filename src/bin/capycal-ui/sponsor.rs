@@ -193,6 +193,7 @@ pub fn view(state: &SponsorState) -> View {
         choice: None,
         warning: None,
         entry: None,
+        secret: false,
         last_disabled: false,
         footnote: Some(footnote.to_string()),
     }

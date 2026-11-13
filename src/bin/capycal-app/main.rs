@@ -23,6 +23,8 @@ mod logview;
 #[path = "../capycal-ui/menu.rs"]
 #[allow(dead_code)]
 mod menu;
+#[path = "../capycal-ui/password_prompt.rs"]
+mod password_prompt;
 #[path = "../capycal-ui/picker.rs"]
 #[allow(dead_code)]
 mod picker;

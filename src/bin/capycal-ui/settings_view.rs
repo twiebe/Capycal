@@ -99,6 +99,7 @@ pub enum FieldId {
     Concurrency,
     /// The buttons of a problem on General.
     ReloadConfig,
+    EnterPasswords,
     ShowLog,
     /// Advanced > Troubleshooting of a saved sync.
     FullSyncNow,
@@ -495,6 +496,8 @@ pub enum Reply {
         syncs: Vec<String>,
     },
     ShowLog,
+    /// Ask for the passwords the keychain does not have.
+    AskPasswords(Vec<String>),
     /// Open this page in the browser.
     OpenUrl(&'static str),
 }
@@ -875,6 +878,7 @@ pub fn question_view(confirm: &Confirm, alternative: Option<&'static str>) -> cr
         choice: None,
         warning: None,
         entry: None,
+        secret: false,
         last_disabled: false,
         footnote: None,
     }
@@ -2138,6 +2142,15 @@ impl SettingsScreen {
                 ),
                 (FieldId::OpenConfig, "Open in Editor\u{2026}"),
             ),
+            Problem::Passwords(accounts) => (
+                format!(
+                    "The {} has no password for {}. Until it has, Capycal starts no syncs of \
+                     this config; syncs that ran before keep running as they were.",
+                    crate::password_prompt::store(),
+                    crate::password_prompt::accounts_text(accounts)
+                ),
+                (FieldId::EnterPasswords, "Enter Password\u{2026}"),
+            ),
             Problem::Locked { pid } => (
                 format!(
                     "Another Capycal process (pid {pid}) runs this config, so this one does not \
@@ -2409,6 +2422,10 @@ impl SettingsScreen {
             SettingsInput::Pressed(FieldId::RevealConfig) => vec![Reply::RevealConfig],
             SettingsInput::Pressed(FieldId::ReloadConfig) => vec![Reply::Send(Command::Reload)],
             SettingsInput::Pressed(FieldId::ShowLog) => vec![Reply::ShowLog],
+            SettingsInput::Pressed(FieldId::EnterPasswords) => match &self.problem {
+                Some(Problem::Passwords(accounts)) => vec![Reply::AskPasswords(accounts.clone())],
+                _ => vec![Reply::Show],
+            },
             SettingsInput::Pressed(FieldId::Sponsor(i)) => crate::sponsor::OPTIONS
                 .get(i)
                 .map(|o| vec![Reply::OpenUrl(o.url)])
@@ -4428,6 +4445,19 @@ interval = "5m"
         assert!(matches!(
             &s.input(SettingsInput::Pressed(FieldId::ReloadConfig))[..],
             [Reply::Send(Command::Reload)]
+        ));
+        // A missing password: its prompt, not the editor
+        assert!(s.set_problem(Some(&Problem::Passwords(vec!["acc".into()]))));
+        let view = s.current_view();
+        assert!(
+            problem_text(&view)
+                .unwrap()
+                .contains("no password for the account acc")
+        );
+        assert!(button(&view, FieldId::EnterPasswords));
+        assert!(matches!(
+            &s.input(SettingsInput::Pressed(FieldId::EnterPasswords))[..],
+            [Reply::AskPasswords(accounts)] if accounts == &["acc"]
         ));
         // A missing config is a state, not a problem
         assert!(s.set_problem(Some(&Problem::NoConfig)));
