@@ -55,6 +55,9 @@ pub struct RunnerSettings {
     pub name: String,
     pub source_name: String,
     pub sink_name: String,
+    /// Accounts of the source and target calendars, named in their errors.
+    pub source_account: Option<String>,
+    pub sink_account: Option<String>,
     pub source_url: String,
     pub fields: HashSet<String>,
     pub transforms: Vec<Transform>,
@@ -89,6 +92,8 @@ pub struct SyncRunner<Src: EventSource, Snk: EventSink, St: StateStore> {
     pub name: String,
     pub source_name: String,
     pub sink_name: String,
+    source_account: Option<String>,
+    sink_account: Option<String>,
     source: Src,
     sink: Snk,
     allowed_fields: HashSet<String>,
@@ -133,6 +138,8 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
             name: settings.name,
             source_name: settings.source_name,
             sink_name: settings.sink_name,
+            source_account: settings.source_account,
+            sink_account: settings.sink_account,
             source,
             sink,
             allowed_fields: settings.fields,
@@ -302,7 +309,7 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
         let (changed, mut removed) = tokio::select! {
             biased;
             _ = stopped(shutdown) => return Err(Error::Cancelled),
-            result = self.source.fetch_changes(&mut fetched) => result?,
+            result = self.source.fetch_changes(&mut fetched) => result.map_err(|e| self.source_error(e))?,
         };
         // Deferred before the state changes, so the next cycle checks the same removals
         let synced: HashSet<&str> = self
@@ -439,12 +446,12 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
         let (events, _) = tokio::select! {
             biased;
             _ = stopped(shutdown) => return Err(Error::Cancelled),
-            result = self.source.fetch_changes(&mut fetched) => result?,
+            result = self.source.fetch_changes(&mut fetched) => result.map_err(|e| self.source_error(e))?,
         };
         let listed = tokio::select! {
             biased;
             _ = stopped(shutdown) => return Err(Error::Cancelled),
-            result = self.sink.list_synced(&self.name, &self.source_name) => result?,
+            result = self.sink.list_synced(&self.name, &self.source_name) => result.map_err(|e| self.sink_error(e))?,
         };
 
         let sources: HashMap<String, &SourceEvent> = events
@@ -887,6 +894,14 @@ impl<Src: EventSource, Snk: EventSink + Clone + 'static, St: StateStore> SyncRun
         }))
     }
 
+    fn source_error(&self, e: Error) -> Error {
+        calendar_error("source", &self.source_name, &self.source_account, e)
+    }
+
+    fn sink_error(&self, e: Error) -> Error {
+        calendar_error("target", &self.sink_name, &self.sink_account, e)
+    }
+
     async fn handle_deletion(&mut self, deleted_href: &str) -> Result<bool> {
         let found = self
             .state
@@ -1026,6 +1041,19 @@ fn rebuild_mapping<S>(
 }
 
 /// Resolves once shutdown is signalled, and never if the sender is gone without signalling.
+/// Name the calendar an error of a cycle came from. A cancellation stays one.
+fn calendar_error(side: &'static str, calendar: &str, account: &Option<String>, e: Error) -> Error {
+    match e {
+        Error::Cancelled => e,
+        e => Error::Calendar {
+            side,
+            calendar: calendar.to_string(),
+            account: account.clone(),
+            source: Box::new(e),
+        },
+    }
+}
+
 async fn stopped(shutdown: &mut watch::Receiver<bool>) {
     if shutdown.wait_for(|&stop| stop).await.is_err() {
         std::future::pending::<()>().await;
@@ -1314,6 +1342,8 @@ mod tests {
             name: SYNC_NAME.to_string(),
             source_name: "work".to_string(),
             sink_name: "personal".to_string(),
+            source_account: None,
+            sink_account: Some("home".to_string()),
             source_url: "https://caldav.example.com/work/".to_string(),
             fields: ["DTSTART", "DTEND"].iter().map(|f| f.to_string()).collect(),
             transforms,
@@ -1979,7 +2009,11 @@ mod tests {
         let batches = vec![Err(Error::CalDav("source down".to_string()))];
         let mut r = runner(vec![], &store, batches, &sink);
 
-        assert!(r.sync_once().await.is_err());
+        let err = r.sync_once().await.unwrap_err().to_string();
+        assert_eq!(
+            err,
+            "source calendar 'work': CalDAV request failed: source down"
+        );
         assert!(sink.log().puts.is_empty());
     }
 
@@ -2253,7 +2287,9 @@ mod tests {
         let failed = next().await;
         assert_eq!(
             failed.last_result,
-            Some(Err("CalDAV request failed: server down".to_string()))
+            Some(Err(
+                "source calendar 'work': CalDAV request failed: server down".to_string()
+            ))
         );
 
         shutdown_tx.send(true).unwrap();
@@ -2674,7 +2710,12 @@ mod tests {
             store.clone(),
         )
         .unwrap();
-        assert!(r.cycle(t0, &mut shutdown, false).await.is_err());
+        let err = r.cycle(t0, &mut shutdown, false).await.unwrap_err();
+        assert!(
+            err.to_string()
+                .starts_with("target calendar 'personal' (account 'home'): "),
+            "{err}"
+        );
         assert_eq!(
             r.state.output_key.as_deref(),
             Some("k1"),

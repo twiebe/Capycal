@@ -80,7 +80,11 @@ fn build_runner(
     };
     let output_key = sync_config.output_key(source_cal, target_cal);
     let window = sync_config.window(source_cal);
-    let settings = runner_settings(sync_config, source_url, output_key, window)?;
+    let settings = RunnerSettings {
+        source_account: source_cal.account.clone(),
+        sink_account: target_cal.account.clone(),
+        ..runner_settings(sync_config, source_url, output_key, window)?
+    };
     let sink_sem = semaphores
         .get(&sync_config.target)
         .cloned()
@@ -436,6 +440,8 @@ fn runner_settings(
         name: sync_config.name.clone(),
         source_name: sync_config.source.clone(),
         sink_name: sync_config.target.clone(),
+        source_account: None,
+        sink_account: None,
         source_url: source_url.to_string(),
         fields: sync_config.fields.iter().cloned().collect(),
         transforms: sync_config.compile_transforms()?,

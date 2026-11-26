@@ -39,6 +39,15 @@ pub enum Error {
         source: Box<Error>,
     },
 
+    /// An error of the source or target calendar of a sync cycle.
+    #[error("{side} calendar '{calendar}'{}: {source}", account_suffix(account))]
+    Calendar {
+        side: &'static str,
+        calendar: String,
+        account: Option<String>,
+        source: Box<Error>,
+    },
+
     #[error("sync-token expired, full resync required")]
     SyncTokenExpired,
 
@@ -66,6 +75,13 @@ pub enum Error {
         other_config: String,
         pid: String,
     },
+}
+
+fn account_suffix(account: &Option<String>) -> String {
+    account
+        .as_ref()
+        .map(|a| format!(" (account '{a}')"))
+        .unwrap_or_default()
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
