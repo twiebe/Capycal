@@ -234,11 +234,18 @@ async fn marked_caldav_events(
     sync_name: &str,
     source_name: &str,
 ) -> Result<Vec<String>> {
-    Ok(synced_events(client, sync_name, source_name)
-        .await?
-        .into_iter()
-        .map(|e| e.href)
-        .collect())
+    match synced_events(client, sync_name, source_name).await {
+        Ok(events) => Ok(events.into_iter().map(|e| e.href).collect()),
+        // A calendar that is gone (moved on the server) keeps no events to remove
+        Err(Error::SinkEvents { source, .. }) if matches!(*source, Error::CalendarNotFound(_)) => {
+            warn!(
+                sync = sync_name,
+                "target calendar not found, no events to remove"
+            );
+            Ok(Vec::new())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Count the Calendar.app events carrying the notes marker of `sync`.
@@ -524,6 +531,22 @@ pub(crate) mod tests {
             err.to_string(),
             "configuration error: sync 'nope' not found in config"
         );
+        // A target that is gone has no events to remove
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("work-to-home.json"), "{}").unwrap();
+        assert_eq!(count_synced_events(&cfg, "work-to-home").await.unwrap(), 0);
+        assert_eq!(
+            purge_sync(&cfg, "work-to-home", no_progress())
+                .await
+                .unwrap(),
+            (0, 0)
+        );
+        assert!(!dir.join("work-to-home.json").exists());
+
+        Mock::given(method("PROPFIND"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
         let err = count_synced_events(&cfg, "work-to-home").await.unwrap_err();
         assert!(
             err.to_string().starts_with("error listing target events: "),

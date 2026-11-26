@@ -249,6 +249,9 @@ impl CalDavClient {
             .await?;
 
         let status = resp.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(Error::CalendarNotFound("PROPFIND (list)"));
+        }
         let text = resp.text().await?;
         if !status.is_success() && status.as_u16() != 207 {
             return Err(Error::CalDav(format!(

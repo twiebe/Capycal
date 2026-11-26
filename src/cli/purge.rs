@@ -94,7 +94,8 @@ mod tests {
     use crate::cli::tests::{caldav_config, state_dir};
     use crate::sync::maintenance::tests::{event, expect_deletes, mount_home};
     use std::path::Path;
-    use wiremock::MockServer;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_purge_all_needs_the_calendar_name_typed() {
@@ -209,6 +210,10 @@ mod tests {
     #[tokio::test]
     async fn test_purge_reports_listing_error() {
         let server = MockServer::start().await;
+        Mock::given(method("PROPFIND"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
         let dir = state_dir("purge-list-error");
         write_states(&dir);
 

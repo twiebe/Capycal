@@ -14,6 +14,10 @@ pub enum Error {
     #[error("CalDAV request failed: {0}")]
     CalDav(String),
 
+    /// The calendar collection does not exist (404), so it has no events.
+    #[error("CalDAV request failed: {0} failed with status 404 Not Found")]
+    CalendarNotFound(&'static str),
+
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 

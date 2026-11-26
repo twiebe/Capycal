@@ -43,6 +43,10 @@ Capycal reads a [feed](concepts/calendars.md#calendar-feeds-ical-address) at eve
 
 The feed's address is wrong or no longer valid, for example after resetting Google's secret address. Copy it again from the service and paste it into the sync's **Feed address** (or `ics_url`). "does not return an iCalendar file" means the address answers with a web page, often a sign-in page: use the address meant for calendar apps (Google: **Secret address in iCal format**, not the public or embed link).
 
+### "target calendar '...' (account '...'): ... failed with status 404 Not Found"
+
+The calendar's address no longer exists on the server, for example after a server migration gave the calendar a new address. The error names the calendar and its account, and whether it is the sync's source or target. List the account's calendars with **Discover** (or `capycal --discover`) and pick the calendar again in the sync, or put its new address into the calendar's `url`. A target that answers 404 has no events to remove, so changing the target of the sync removes nothing from it.
+
 ### Blockers in the wrong place with a time condition
 
 A condition on the start (`days`, `start_time`, `end_time`) uses the timezone of the machine running Capycal, which is often UTC on servers and in containers. See [Timezone](cookbook/time-filters.md#timezone).

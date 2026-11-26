@@ -1020,8 +1020,11 @@ transforms = [
 
     #[tokio::test]
     async fn test_failed_purge_resumes_the_sync() {
-        // Unmocked requests get 404, so listing the sink fails
         let server = MockServer::start().await;
+        Mock::given(method("PROPFIND"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
         let dir = state_dir("purge-fail");
         let cfg = config(&server, &dir, "\"p\"", "");
 

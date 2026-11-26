@@ -9,7 +9,7 @@
 3. On **Remove Events**, the app stops the sync, deletes its events (with the target calendar's `concurrency`), forgets its sync state and disables it (`enabled = false` in the config): the menu shows "work-to-home: disabled". Meanwhile the dialog shows "Removing synced events" with a progress bar ("264 of 1501 events removed"), **Show Log** and **Close**; closing it does not stop the removal.
 4. When done, the dialog says how many events were removed, and any that could not be. Failures also show up in the menu and the Problems window.
 
-The sync stays disabled, also after restarting the app, until you switch it on in Settings; it then copies its source again. Renaming or deleting a sync in Settings removes its events by itself. If the target calendar cannot be read, nothing is deleted and the sync keeps running.
+The sync stays disabled, also after restarting the app, until you switch it on in Settings; it then copies its source again. Renaming or deleting a sync in Settings removes its events by itself. If the target calendar cannot be read, nothing is deleted and the sync keeps running. A target calendar that no longer exists on the server (404) counts as empty.
 
 This is the same as `capycal --purge <sync>` (see [CLI reference](../cli/reference.md#purge)), without stopping the app first.
 
