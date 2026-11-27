@@ -209,6 +209,7 @@ impl UpdateDialog {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: None,
         };
         Self {

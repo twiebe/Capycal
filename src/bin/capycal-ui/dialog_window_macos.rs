@@ -10,13 +10,14 @@ use objc2_app_kit::{
     NSBackingStoreType, NSBox, NSBoxType, NSButton, NSCellImagePosition, NSColor, NSControlSize,
     NSFont, NSFontAttributeName, NSForegroundColorAttributeName, NSImage, NSImageScaling,
     NSImageView, NSLayoutAttribute, NSLayoutConstraint, NSMutableParagraphStyle, NSPanel,
-    NSParagraphStyleAttributeName, NSPopUpButton, NSProgressIndicator, NSProgressIndicatorStyle,
-    NSSecureTextField, NSStackView, NSStackViewDistribution, NSTextAlignment, NSTextField,
-    NSTitlePosition, NSUserInterfaceLayoutOrientation, NSView, NSWindowStyleMask,
+    NSParagraphStyleAttributeName, NSPasteboard, NSPasteboardTypeString, NSPopUpButton,
+    NSProgressIndicator, NSProgressIndicatorStyle, NSSecureTextField, NSStackView,
+    NSStackViewDistribution, NSTextAlignment, NSTextField, NSTitlePosition,
+    NSUserInterfaceLayoutOrientation, NSView, NSWindowStyleMask,
 };
 use objc2_foundation::{
-    NSArray, NSAttributedString, NSData, NSDictionary, NSMutableAttributedString, NSPoint, NSRect,
-    NSSize, NSString,
+    NSArray, NSAttributedString, NSData, NSDictionary, NSMutableAttributedString, NSPoint, NSRange,
+    NSRect, NSSize, NSString,
 };
 
 use crate::dialog::{Choice, FIRST_LINK, View, layout};
@@ -35,6 +36,7 @@ pub struct DialogWindow {
     message: Retained<NSTextField>,
     warning_box: Retained<NSBox>,
     warning: Retained<NSTextField>,
+    token: Retained<NSButton>,
     entry: Retained<NSTextField>,
     progress: Retained<NSProgressIndicator>,
     choice: Retained<NSPopUpButton>,
@@ -148,6 +150,13 @@ impl DialogWindow {
                     .constraintLessThanOrEqualToAnchor(&inside.trailingAnchor()),
             ]));
         }
+        // The name to type: a click copies it, a Shift-click fills it in
+        let token = button(mtm, "", &target, sel!(token:));
+        token.setControlSize(NSControlSize::Large);
+        token.setFont(Some(
+            &NSFont::boldSystemFontOfSize(NSFont::systemFontSize()),
+        ));
+        token.setToolTip(Some(&NSString::from_str(crate::dialog::TOKEN_TIP)));
         let entry = if view.secret {
             Retained::into_super(NSSecureTextField::new(mtm))
         } else {
@@ -205,6 +214,7 @@ impl DialogWindow {
                 &heading_row,
                 &warning_box,
                 &message,
+                &token,
                 &entry,
                 &progress,
                 &link_row,
@@ -265,6 +275,7 @@ impl DialogWindow {
             message,
             warning_box,
             warning,
+            token,
             entry,
             progress,
             choice,
@@ -293,6 +304,22 @@ impl DialogWindow {
         self.entry.stringValue().to_string()
     }
 
+    /// Put `text` into the field of `View::entry`, the cursor at its end.
+    pub fn fill_entry(&self, text: &str) {
+        self.entry.setStringValue(&NSString::from_str(text));
+        self.window.makeFirstResponder(Some(&self.entry));
+        if let Some(editor) = self.entry.currentEditor() {
+            editor.setSelectedRange(NSRange::new(text.encode_utf16().count(), 0));
+        }
+    }
+
+    pub fn copy(&self, text: &str) {
+        let pasteboard = NSPasteboard::generalPasteboard();
+        pasteboard.clearContents();
+        // SAFETY: an immutable AppKit constant
+        pasteboard.setString_forType(&NSString::from_str(text), unsafe { NSPasteboardTypeString });
+    }
+
     /// Show `view`, resizing the window to fit it.
     pub fn show(&mut self, view: &View) {
         self.heading
@@ -308,6 +335,13 @@ impl DialogWindow {
         self.warning.setStringValue(&NSString::from_str(
             view.warning.as_deref().unwrap_or_default(),
         ));
+        self.token.setHidden(view.token.is_none());
+        let token = view.token.as_deref().unwrap_or_default();
+        self.token.setTitle(&NSString::from_str(token));
+        crate::settings_window_macos::accessibility_label(
+            &self.token,
+            &crate::dialog::token_label(token),
+        );
         self.entry.setHidden(view.entry.is_none());
         self.entry
             .setPlaceholderString(view.entry.as_deref().map(NSString::from_str).as_deref());
@@ -402,7 +436,7 @@ impl DialogWindow {
 impl Drop for DialogWindow {
     fn drop(&mut self) {
         // Buttons and window keep unretained pointers to the target
-        for button in self.buttons.iter().chain(&self.links) {
+        for button in self.buttons.iter().chain(&self.links).chain([&self.token]) {
             // SAFETY: clearing the pointer is always valid
             unsafe { button.setTarget(None) };
         }

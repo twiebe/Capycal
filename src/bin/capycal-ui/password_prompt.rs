@@ -143,6 +143,7 @@ impl PasswordPrompt {
             entry: Some(format!("Password of {account}")),
             secret: true,
             last_disabled: !self.typed || self.saving,
+            token: None,
             footnote,
         }
     }

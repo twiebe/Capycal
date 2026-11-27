@@ -1,7 +1,10 @@
 //! The "Remove All Events" dialog: counting, a warning, a second warning
 //! confirmed by typing the calendar's name, removing and the result.
 
-use crate::dialog::View;
+use crate::dialog::{COPY, FILL, View};
+
+const HINT: &str = "Click the name to copy it, Shift-click to fill it in.";
+const COPIED: &str = "Copied. Paste it into the field, or Shift-click the name to fill it in.";
 
 /// What the app does after a button press.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10,6 +13,10 @@ pub enum Reply {
     /// Remove every event of this calendar; the dialog shows the progress.
     Remove(String),
     ShowLog,
+    /// Put this text on the clipboard, then show the view again.
+    Copy(String),
+    /// Put this text into the field, then show the view again.
+    Fill(String),
     /// The view changed; show it again.
     Show,
 }
@@ -126,12 +133,14 @@ impl PurgeAllDialog {
                 self.name,
                 if self.total == 1 { "is" } else { "are" }
             )),
-            message: format!("Type {} to confirm.", self.name),
-            entry: Some(self.name.clone()),
+            message: "Type the name of the calendar to confirm:".to_string(),
+            token: Some(self.name.clone()),
+            entry: Some("Name of the calendar".to_string()),
             secret: false,
             buttons: &["Cancel", "Remove All Events"],
             destructive: true,
             last_disabled: self.typed.trim() != self.name,
+            footnote: Some(HINT.to_string()),
             ..empty()
         };
     }
@@ -231,6 +240,14 @@ impl PurgeAllDialog {
                 Reply::Remove(self.calendar.clone())
             }
             (Stage::Confirm, 1) => Reply::Show,
+            (Stage::Confirm, COPY) => {
+                self.view.footnote = Some(COPIED.to_string());
+                Reply::Copy(self.name.clone())
+            }
+            (Stage::Confirm, FILL) => {
+                self.typed(&self.name.clone());
+                Reply::Fill(self.name.clone())
+            }
             (Stage::Removing | Stage::Done, 0) => Reply::ShowLog,
             _ => Reply::Close,
         }
@@ -253,6 +270,7 @@ fn empty() -> View {
         entry: None,
         secret: false,
         last_disabled: false,
+        token: None,
     }
 }
 
@@ -328,7 +346,9 @@ mod tests {
                 .unwrap()
                 .contains("the one event in")
         );
-        assert_eq!(view.entry.as_deref(), Some("blockers"));
+        assert_eq!(view.entry.as_deref(), Some("Name of the calendar"));
+        assert_eq!(view.message, "Type the name of the calendar to confirm:");
+        assert_eq!(view.token.as_deref(), Some("blockers"));
         assert!(view.destructive);
         assert!(view.last_disabled, "off until the name is typed");
         assert_eq!(d.press(1), Reply::Show, "nothing happens while it is off");
@@ -339,6 +359,25 @@ mod tests {
         assert!(!d.view().last_disabled);
         assert_eq!(d.press(1), Reply::Remove("b".into()));
         assert_eq!(d.view().progress, Some((0, 12)));
+    }
+
+    #[test]
+    fn test_the_name_is_copied_by_a_click_and_filled_in_by_a_shift_click() {
+        let mut d = dialog(3);
+        assert_eq!(
+            d.press(COPY),
+            Reply::Close,
+            "no name to copy before the confirmation"
+        );
+        let mut d = dialog(3);
+        d.press(1);
+        assert_eq!(d.view().footnote.as_deref(), Some(HINT));
+        assert_eq!(d.press(COPY), Reply::Copy("blockers".into()));
+        assert_eq!(d.view().footnote.as_deref(), Some(COPIED));
+        assert!(d.view().last_disabled, "copying types nothing");
+        assert_eq!(d.press(FILL), Reply::Fill("blockers".into()));
+        assert!(!d.view().last_disabled);
+        assert_eq!(d.press(1), Reply::Remove("b".into()));
     }
 
     #[test]

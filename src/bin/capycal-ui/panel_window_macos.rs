@@ -6,9 +6,10 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSButton, NSColor, NSControlTextEditingDelegate, NSFont, NSImage, NSImageScaling, NSImageView,
-    NSLayoutAttribute, NSLayoutConstraint, NSLayoutConstraintOrientation, NSStackView, NSTextField,
-    NSTextFieldDelegate, NSUserInterfaceLayoutOrientation, NSView, NSWindowDelegate,
+    NSButton, NSColor, NSControlTextEditingDelegate, NSEvent, NSEventModifierFlags, NSFont,
+    NSImage, NSImageScaling, NSImageView, NSLayoutAttribute, NSLayoutConstraint,
+    NSLayoutConstraintOrientation, NSStackView, NSTextField, NSTextFieldDelegate,
+    NSUserInterfaceLayoutOrientation, NSView, NSWindowDelegate,
 };
 use objc2_foundation::{NSArray, NSNotification, NSSize, NSString};
 
@@ -69,6 +70,18 @@ define_class!(
                 }
             };
             self.send(PanelInput::Button(tag as usize));
+        }
+
+        /// A click on a dialog's name to type: reported as button `COPY`,
+        /// with Shift as `FILL` (see `dialog::View::token`).
+        #[unsafe(method(token:))]
+        fn token(&self, _sender: Option<&AnyObject>) {
+            let shift = NSEvent::modifierFlags_class().contains(NSEventModifierFlags::Shift);
+            self.send(PanelInput::Button(if shift {
+                crate::dialog::FILL
+            } else {
+                crate::dialog::COPY
+            }));
         }
 
         /// A popup button's item was chosen: reported as button

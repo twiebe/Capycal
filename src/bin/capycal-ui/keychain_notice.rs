@@ -38,6 +38,7 @@ pub fn view(accounts: &[String]) -> View {
         entry: None,
         secret: false,
         last_disabled: false,
+        token: None,
         footnote: Some(format!(
             "{asks} Choose Always Allow, so it does not ask again."
         )),

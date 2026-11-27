@@ -137,6 +137,23 @@ pub const FIRST_CHOICE: usize = 200;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const TYPED: usize = 400;
 
+/// A click on `View::token` reports this as button, a Shift-click `FILL`.
+// The Linux build of capycal-ui is a stub; capycal-app and macOS use them
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const COPY: usize = 401;
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const FILL: usize = 402;
+
+/// The tooltip of `View::token`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const TOKEN_TIP: &str = "Click to copy, Shift-click to fill in";
+
+/// The accessibility label of `View::token`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn token_label(token: &str) -> String {
+    format!("Copy the name {token}")
+}
+
 /// A click on the description in About reports this as button.
 // The Linux build of capycal-ui is a stub; macOS uses it
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -175,6 +192,9 @@ pub struct View {
     pub secret: bool,
     /// The last button is off, such as until the right text is typed.
     pub last_disabled: bool,
+    /// A name to type into `entry`, shown bold in a pill below the message.
+    /// A click on it reports `COPY`, a Shift-click `FILL`.
+    pub token: Option<String>,
 }
 
 impl View {
@@ -252,6 +272,7 @@ mod tests {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: None,
         }
     }

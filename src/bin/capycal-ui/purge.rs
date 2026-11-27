@@ -90,6 +90,7 @@ impl PurgeDialog {
                 entry: None,
                 secret: false,
                 last_disabled: false,
+                token: None,
                 footnote: None,
             },
             totals: Vec::new(),
@@ -137,6 +138,7 @@ impl PurgeDialog {
                 entry: None,
                 secret: false,
                 last_disabled: false,
+                token: None,
                 footnote: None,
             };
         } else {
@@ -173,6 +175,7 @@ impl PurgeDialog {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: Some(confirm_note(chosen.purgeable().len() == 1)),
         };
         self.stage = Stage::Confirm { preview, selected };
@@ -214,6 +217,7 @@ impl PurgeDialog {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: Some(disabled_note(outcomes.len() == 1)),
         };
     }
@@ -261,6 +265,7 @@ impl PurgeDialog {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: None,
         }
     }

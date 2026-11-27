@@ -19,7 +19,7 @@ This is the same as `capycal --purge <sync>` (see [CLI reference](../cli/referen
 
 1. A dialog opens and counts the events in the target. An empty calendar or one that cannot be read ends here.
 2. A warning in an orange box says how many events are deleted and lists the syncs writing into the calendar, which are switched off afterwards. **Continue…** goes on, **Cancel** stops.
-3. A second warning asks you to type the calendar's name as Settings shows it. **Remove All Events** is enabled only once the name matches.
+3. A second warning asks you to type the calendar's name as Settings shows it. The name stands in bold below the question: a click copies it, a Shift-click fills it into the field. **Remove All Events** is enabled only once the name matches.
 4. The app stops the syncs writing into the calendar, deletes the events with a progress bar, forgets their sync state and switches them off (`enabled = false`). Closing the dialog does not stop the removal. If the calendar cannot be read, nothing is deleted and the syncs keep running.
 
 Switch the syncs on again in Settings to copy their sources from scratch. This is the same as `capycal --purge-all <calendar>` (see [CLI reference](../cli/reference.md#purge)), except that the CLI does not switch the syncs off.

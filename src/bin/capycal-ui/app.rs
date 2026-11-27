@@ -1035,6 +1035,14 @@ impl App {
                 self.send(Command::PurgeCalendar(calendar));
             }
             crate::purge_all::Reply::ShowLog => self.show_log(),
+            crate::purge_all::Reply::Copy(text) => {
+                window.copy(&text);
+                window.show(dialog.view());
+            }
+            crate::purge_all::Reply::Fill(text) => {
+                window.fill_entry(&text);
+                window.show(dialog.view());
+            }
             crate::purge_all::Reply::Show => window.show(dialog.view()),
         }
     }
@@ -1351,6 +1359,7 @@ impl App {
             entry: None,
             secret: false,
             last_disabled: false,
+            token: None,
             footnote: None,
         };
         self.error_window = Some(DialogWindow::open(

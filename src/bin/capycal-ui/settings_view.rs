@@ -879,6 +879,7 @@ pub fn question_view(confirm: &Confirm, alternative: Option<&'static str>) -> cr
         warning: None,
         entry: None,
         secret: false,
+        token: None,
         last_disabled: false,
         footnote: None,
     }

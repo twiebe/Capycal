@@ -9,7 +9,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, glib};
 
-use crate::dialog::{Choice, FIRST_CHOICE, FIRST_LINK, View};
+use crate::dialog::{COPY, Choice, FILL, FIRST_CHOICE, FIRST_LINK, View};
 
 /// What happened in the dialog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +28,8 @@ pub struct DialogWindow {
     message: gtk::Label,
     warning_box: gtk::Box,
     warning: gtk::Label,
+    token: gtk::Button,
+    token_label: gtk::Label,
     entry: gtk::Entry,
     progress: gtk::ProgressBar,
     choice: gtk::DropDown,
@@ -107,6 +109,28 @@ impl DialogWindow {
         add_css(
             ".capycal-warning-box { background: alpha(#e66100, 0.15); border-radius: 8px; padding: 10px 12px; }",
         );
+        // The name to type: a click copies it, a Shift-click fills it in
+        let token_label = gtk::Label::builder().css_classes(["heading"]).build();
+        let token = gtk::Button::builder()
+            .child(&token_label)
+            .halign(gtk::Align::Center)
+            .css_classes(["pill"])
+            .tooltip_text(crate::dialog::TOKEN_TIP)
+            .visible(false)
+            .build();
+        let pressed = notify.clone();
+        token.connect_clicked(move |token| {
+            let shift = token
+                .display()
+                .default_seat()
+                .and_then(|seat| seat.keyboard())
+                .is_some_and(|keyboard| {
+                    keyboard
+                        .modifier_state()
+                        .contains(gdk::ModifierType::SHIFT_MASK)
+                });
+            pressed(DialogInput::Button(if shift { FILL } else { COPY }));
+        });
         let entry = gtk::Entry::builder().visible(false).build();
         let typed = notify.clone();
         entry.connect_changed(move |_| typed(DialogInput::Button(crate::dialog::TYPED)));
@@ -165,6 +189,7 @@ impl DialogWindow {
             heading_row.upcast_ref(),
             warning_box.upcast_ref(),
             message.upcast_ref(),
+            token.upcast_ref(),
             entry.upcast_ref(),
             progress.upcast_ref(),
             links.upcast_ref(),
@@ -191,6 +216,8 @@ impl DialogWindow {
             message,
             warning_box,
             warning,
+            token,
+            token_label,
             entry,
             progress,
             choice,
@@ -230,6 +257,13 @@ impl DialogWindow {
         self.warning_box.set_visible(view.warning.is_some());
         self.warning
             .set_text(view.warning.as_deref().unwrap_or_default());
+        self.token.set_visible(view.token.is_some());
+        let token = view.token.as_deref().unwrap_or_default();
+        self.token_label.set_text(token);
+        self.token
+            .update_property(&[gtk::accessible::Property::Label(
+                &crate::dialog::token_label(token),
+            )]);
         self.entry.set_visible(view.entry.is_some());
         self.entry.set_visibility(!view.secret);
         // Return saves a password; elsewhere the default may be Cancel
@@ -269,6 +303,17 @@ impl DialogWindow {
     /// The text typed into the field of `View::entry`.
     pub fn entry_text(&self) -> String {
         self.entry.text().to_string()
+    }
+
+    /// Put `text` into the field of `View::entry`, the cursor at its end.
+    pub fn fill_entry(&self, text: &str) {
+        self.entry.set_text(text);
+        self.entry.grab_focus();
+        self.entry.set_position(-1);
+    }
+
+    pub fn copy(&self, text: &str) {
+        self.dialog.clipboard().set_text(text);
     }
 
     fn set_choice(&mut self, choice: Option<&Choice>) {
