@@ -131,6 +131,7 @@ Moving incrementally toward ports & adapters (no crate split, generics instead o
 - The top-level `sync-token` of a sync-collection answer is searched outside the `response` elements (Radicale sends it first)
 - Discovery skips collections whose `supported-calendar-component-set` lacks `VEVENT`; `DiscoveredCalendar::writable` comes from `current-user-privilege-set` (absent = writable)
 - CDATA: strip `<![CDATA[...]]>` wrappers from XML content
+- Event hrefs need no `.ics` (Stalwart 1.x names migrated events by id): `list_events` skips only collections (`resourcetype`, trailing `/`)
 - Sync-token: try RFC 6578 sync-collection first, fall back to ctag/etag
 - PUT: unconditional (no If-None-Match or If-Match) for simplicity
 - Retry: exponential backoff on 408/429/5xx, a 400 whose `RateLimit` header has `r=0` (Stalwart over its limit of requests at once) and connect/timeout errors, respect Retry-After header. Above that, `SyncRunner::run` retries a failed cycle (an error or `CycleStats.errors`) after `ERROR_RETRY` (1, 2, 5, 15 min, at most `interval`) instead of waiting the interval

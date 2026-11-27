@@ -81,8 +81,12 @@ impl Server {
     }
 
     async fn put(&self, calendar: &str, name: &str, ics: &str) {
+        self.put_file(calendar, &format!("{name}.ics"), ics).await;
+    }
+
+    async fn put_file(&self, calendar: &str, name: &str, ics: &str) {
         let response = self
-            .request("PUT", &format!("{}{name}.ics", self.url(calendar)))
+            .request("PUT", &format!("{}{name}", self.url(calendar)))
             .await
             .header("Content-Type", "text/calendar; charset=utf-8")
             .body(ics.replace('\n', "\r\n"))
@@ -120,7 +124,8 @@ impl Server {
             .text()
             .await
             .unwrap();
-        let hrefs = Regex::new(r"<(?:\w+:)?href>([^<]+\.ics)</(?:\w+:)?href>").unwrap();
+        // Every href but the collection's, event names need no .ics
+        let hrefs = Regex::new(r"<(?:\w+:)?href>([^<]*[^/<])</(?:\w+:)?href>").unwrap();
         let mut events = Vec::new();
         for href in hrefs.captures_iter(&body) {
             let url = reqwest::Url::parse(&self.base)
@@ -602,6 +607,29 @@ async fn test_purge_removes_only_synced_events() {
     let events = setup.sink_events().await;
     assert_eq!(events.len(), 1, "{events:#?}");
     assert!(events[0].contains("UID:own"));
+    setup.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a CalDAV server, run `make test-caldav`"]
+async fn test_copy_renamed_by_the_server_is_found_again() {
+    // Stalwart 1.x names migrated events by id, without .ics
+    let setup = Setup::new("renamed", "").await;
+    setup.put("a", &event("a", "")).await;
+    setup.sync();
+    let copy = setup.copy_of("a").await;
+    let uid = copy
+        .lines()
+        .find_map(|l| l.strip_prefix("UID:"))
+        .unwrap()
+        .to_string();
+    setup.server.delete(&setup.sink, &uid).await;
+    setup.server.put_file(&setup.sink, "Gx7rT2kQ", &copy).await;
+    setup.capycal(&["--full-sync", "--once"]);
+    setup.copy_of("a").await;
+    assert_eq!(setup.sink_events().await.len(), 1);
+    setup.capycal(&["--purge", "test"]);
+    assert!(setup.sink_events().await.is_empty());
     setup.cleanup().await;
 }
 

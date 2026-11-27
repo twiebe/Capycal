@@ -234,6 +234,7 @@ impl CalDavClient {
 <d:propfind xmlns:d="DAV:">
   <d:prop>
     <d:getetag/>
+    <d:resourcetype/>
   </d:prop>
 </d:propfind>"#;
 
@@ -890,8 +891,9 @@ fn parse_multistatus_refs(xml: &str, base_url: &str) -> Vec<EventRef> {
         if is_collection_href(&href, base_url) {
             continue;
         }
-        // Only include .ics files
-        if !href.ends_with(".ics") {
+        // Event names need no .ics: Stalwart names migrated events by id
+        let resource_type = extract_xml_text(&response_block, "resourcetype").unwrap_or_default();
+        if href.ends_with('/') || contains_element(&resource_type, "collection") {
             continue;
         }
         let etag = extract_xml_text(&response_block, "getetag").unwrap_or_default();
@@ -1191,6 +1193,29 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_refs_keeps_events_without_extension_and_skips_collections() {
+        let xml = r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/dav/cal/alice/GFGzwhnrij/44rWD2UoYA</d:href>
+    <d:propstat><d:prop><d:getetag>"e1"</d:getetag><d:resourcetype/></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/cal/alice/GFGzwhnrij/sub</d:href>
+    <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/cal/alice/GFGzwhnrij/other/</d:href>
+    <d:propstat><d:prop><d:getetag>"c"</d:getetag></d:prop></d:propstat>
+  </d:response>
+</d:multistatus>"#;
+        let refs =
+            parse_multistatus_refs(xml, "https://server.example.com/dav/cal/alice/GFGzwhnrij/");
+        let hrefs: Vec<&str> = refs.iter().map(|r| r.href.as_str()).collect();
+        assert_eq!(hrefs, ["/dav/cal/alice/GFGzwhnrij/44rWD2UoYA"]);
+    }
+
+    #[test]
     fn test_parse_sync_response_with_deletions() {
         let xml = r#"<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
@@ -1427,14 +1452,14 @@ END:VCALENDAR</c:calendar-data>
     }
 
     #[tokio::test]
-    async fn test_list_events_filters_collection_and_non_ics() {
+    async fn test_list_events_filters_collections() {
         let server = MockServer::start().await;
         Mock::given(method("PROPFIND"))
             .and(header("Depth", "1"))
             .respond_with(multistatus(
                 r#"<d:response><d:href>/cal/</d:href><d:propstat><d:prop><d:getetag>"col"</d:getetag></d:prop></d:propstat></d:response>
 <d:response><d:href>/cal/a.ics</d:href><d:propstat><d:prop><d:getetag>"ea"</d:getetag></d:prop></d:propstat></d:response>
-<d:response><d:href>/cal/notes.txt</d:href><d:propstat><d:prop><d:getetag>"en"</d:getetag></d:prop></d:propstat></d:response>
+<d:response><d:href>/cal/sub</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
 <d:response><d:href>/cal/b.ics</d:href><d:propstat><d:prop><d:getetag>"eb"</d:getetag></d:prop></d:propstat></d:response>"#,
             ))
             .expect(1)

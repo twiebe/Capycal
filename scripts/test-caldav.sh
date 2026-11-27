@@ -12,7 +12,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/capycal-test-$server.XXXXXX")"
 container="capycal-test-$server-$$"
 password="capycal-test-password"
 
-STALWART_IMAGE="stalwartlabs/stalwart:v1.0.2"
+STALWART_IMAGE="stalwartlabs/stalwart:v1.2.1"
 NEXTCLOUD_IMAGE="nextcloud:34.0.5-apache"
 
 cleanup() {
