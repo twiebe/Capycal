@@ -106,6 +106,9 @@ impl DialogWindow {
         let message = NSTextField::wrappingLabelWithString(&NSString::new(), mtm);
         message.setAlignment(NSTextAlignment::Center);
         message.setPreferredMaxLayoutWidth(MESSAGE_WIDTH);
+        // Selectable: without this, a click hands the text to the field editor
+        // as plain text and the bold runs are lost
+        message.setAllowsEditingTextAttributes(true);
         // A bold warning after the sign, in a light orange box
         let sign = NSImage::imageWithSystemSymbolName_accessibilityDescription(
             &NSString::from_str("exclamationmark.triangle.fill"),
