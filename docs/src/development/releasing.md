@@ -11,6 +11,18 @@ Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a ta
 
    `release-tag` writes the version to `Cargo.toml` and `Cargo.lock`, commits "Release 0.2.0" and adds the annotated tag `v0.2.0`. Its message opens in your editor, filled with the subjects of the commits since the last `v*` tag; closing the editor with an empty message cancels the tag. The message becomes the release notes, followed by GitHub's link to the full changelog, so write it for users. If `Cargo.toml` already has the version (a tag deleted to tag a later commit), it only tags. The tag must be `v` plus the version from `Cargo.toml`; the workflow fails otherwise. Push the tag from the command line and do not create the release in GitHub's web interface: the workflow creates it and fails if one exists.
 
+## Release notes
+
+The tag message is the release notes: users read it on GitHub, in the update dialog's link and in their package manager. Write it for someone who uses Capycal and has never seen the code. The commit subjects `release-tag` puts into the editor are a checklist of what changed, not the notes; replace them.
+
+- One entry per change that a user notices, fixes first, then new features and improvements. Leave out tests, CI, refactoring and docs-only changes.
+- Each entry starts with a bold sentence saying what is different now, then one to three sentences of context: what went wrong before (the symptom or the error as the user saw it, e.g. "PROPFIND (list) failed with status 404 Not Found"), in which setup (server, macOS app, Linux app, CLI), and what happens now.
+- Say if users have to do anything (pick a calendar again, run a full sync, nothing), and whether the CLI, the apps or both are affected.
+- Plain words, no code names (`EventSink`, `list_events`); options, commands and messages in backticks.
+- No `#` headings: git drops lines starting with `#` from the message. Use a bold line (`**Fixes**`) instead.
+
+Once a tag is pushed, leave it as it is: fix a mistake in the notes with `gh release edit v<version> --notes-file <file>` (keep the "Full Changelog" line GitHub added at the end).
+
 `Cargo.toml` is the only source of the version. A build of the commit tagged `v<version>` shows it plain (`capycal --version`, About, the Settings sidebar); every other build adds the commit, e.g. `0.2.0 (abc1234)`, set by `build.rs` as `capycal::VERSION`. Outside a git checkout the version stays plain.
 
 The workflow:

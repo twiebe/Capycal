@@ -140,6 +140,12 @@ release-tag: ## Set the version in Cargo.toml, commit and tag it: make release-t
 	@git diff --quiet HEAD || { echo "commit or stash your changes first"; exit 1; }
 	@last=$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); \
 		git log --no-merges --invert-grep --grep='^Release ' --format='- %s' $${last:+$$last..}HEAD >"$(TAG_MESSAGE)"
+	@printf '%s\n' '' \
+		'# These are the release notes users read. Replace the subjects above with one entry' \
+		'# per change they notice: a bold sentence on what is different now, then what went' \
+		'# wrong before (the symptom or error they saw, in which setup), what happens now and' \
+		'# whether they have to do anything. See docs/src/development/releasing.md.' \
+		'# Lines starting with # are dropped.' >>"$(TAG_MESSAGE)"
 	VERSION=$(VERSION) perl -0pi -e 's/^version = "[^"]*"/version = "$$ENV{VERSION}"/m' Cargo.toml
 	cargo update --workspace --offline --quiet
 	@# Already at the version, e.g. after a tag was deleted: only tag again
